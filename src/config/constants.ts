@@ -6,6 +6,7 @@ export const CHANNELS = [
     'durov',
     'notcoin',
     'notpixel_channel',
+    'threadingontheedge',
 ];
 
 export const API_CONFIG = {
