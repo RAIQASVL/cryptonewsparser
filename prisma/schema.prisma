@@ -1,0 +1,21 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Post {
+  id           Int      @id @default(autoincrement())
+  channel      String
+  messageId    Int
+  date         DateTime
+  text         String
+  validation   Boolean
+  newPost      String?
+  imagePrompt  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+} 
