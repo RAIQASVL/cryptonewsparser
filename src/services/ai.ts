@@ -34,6 +34,8 @@ export async function validateMessages(messages: { id: number, text: string }[])
     return validations;
 }
 
+// Keeping for future use
+/*
 export async function generateNewPost(text: string) {
     const completion = await openai.chat.completions.create({
         model: "deepseek-chat",
@@ -56,4 +58,5 @@ export async function generateImagePrompt(text: string) {
     });
 
     return completion.choices[0].message.content;
-} 
+}
+*/ 

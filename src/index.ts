@@ -5,7 +5,11 @@ import { config } from 'dotenv';
 import moment from 'moment-timezone';
 import express from 'express';
 import { prisma } from './services/db';
-import { validateMessages, generateNewPost, generateImagePrompt } from './services/ai';
+import { 
+    validateMessages, 
+    // generateNewPost, 
+    // generateImagePrompt 
+} from './services/ai';
 import { TIMEZONE, CHANNELS, API_CONFIG } from './config/constants';
 import postsRouter from './routes/posts';
 
@@ -48,13 +52,7 @@ async function processValidatedMessages(validations: Record<number, boolean>, me
     for (const message of messages) {
         if (validations[message.id]) {
             try {
-                console.log(`Generating new post for message ${message.id}: ${message.text.substring(0, 100)}...`);
-                
-                const newPost = await generateNewPost(message.text);
-                console.log(`Generated new post: ${newPost}`);
-
-                const imagePrompt = await generateImagePrompt(newPost!);
-                console.log(`Generated image prompt: ${imagePrompt}`);
+                console.log(`Processing message ${message.id}: ${message.text.substring(0, 100)}...`);
 
                 const postData: PostData = {
                     channel: message.channel,
@@ -62,8 +60,7 @@ async function processValidatedMessages(validations: Record<number, boolean>, me
                     date: message.date,
                     text: message.text,
                     validation: true,
-                    new_post: newPost!,
-                    image_prompt: imagePrompt!
+                    // new_post and image_prompt will be null
                 };
 
                 // Store in database
@@ -74,8 +71,7 @@ async function processValidatedMessages(validations: Record<number, boolean>, me
                         date: postData.date,
                         text: postData.text,
                         validation: !!postData.validation,
-                        newPost: postData.new_post,
-                        imagePrompt: postData.image_prompt
+                        // newPost and imagePrompt will be null by default
                     }
                 });
 
