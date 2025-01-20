@@ -24,13 +24,14 @@ router.get('/latest', async (req, res) => {
     }
 });
 
-router.get('/channels', async (req, res) => {
+router.get('/channels', async (_, res) => {
     try {
         const channels = await prisma.post.findMany({
             select: { channel: true },
             distinct: ['channel']
         });
         
+        // @ts-ignore
         res.json(channels.map(c => c.channel));
     } catch (error) {
         console.error('Error fetching channels:', error);
