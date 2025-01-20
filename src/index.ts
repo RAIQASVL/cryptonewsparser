@@ -27,19 +27,13 @@ interface PostData {
 }
 
 async function startTelegramClient() {
-    const stringSession = new StringSession('');
+    const stringSession = new StringSession(process.env.TELEGRAM_SESSION || '');
     const client = new TelegramClient(stringSession, API_CONFIG.API_ID, API_CONFIG.API_HASH, {
         connectionRetries: 5,
     });
 
     try {
-        await client.start({
-            phoneNumber: API_CONFIG.PHONE_NUMBER,
-            password: async () => await input.text('Please enter your password: '),
-            phoneCode: async () => await input.text('Please enter the code you received: '),
-            onError: (err) => console.error('Error in Telegram client:', err),
-        });
-
+        await client.connect();  // Just connect, no need for start()
         console.log('Connected to Telegram');
         return client;
     } catch (error) {
