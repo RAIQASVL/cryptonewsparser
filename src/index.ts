@@ -176,7 +176,7 @@ async function checkNewPosts(client: TelegramClient) {
 
 async function checkForwardChannels(client: TelegramClient) {
     const gmtPlus3 = moment().tz(TIMEZONE);
-    const timeWindowStart = gmtPlus3.clone().subtract(30, 'minutes');
+    const timeWindowStart = gmtPlus3.clone().subtract(90, 'minutes');
 
     console.log({
         now: gmtPlus3.format(),
