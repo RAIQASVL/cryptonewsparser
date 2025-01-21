@@ -18,4 +18,18 @@ model Post {
   imagePrompt  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model ForwardPost {
+  id           Int      @id @default(autoincrement())
+  channel      String
+  channelId    String
+  messageId    Int
+  date         DateTime
+  text         String
+  forwarded    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([channel, messageId])
 } 

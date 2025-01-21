@@ -39,4 +39,37 @@ router.get('/channels', async (_, res) => {
     }
 });
 
+router.get('/forward', async (req, res) => {
+    try {
+        const posts = await prisma.forwardPost.findMany({
+            where: {
+                forwarded: false
+            },
+            orderBy: {
+                date: 'desc'
+            }
+        });
+        
+        res.json({ count: posts.length, posts });
+    } catch (error) {
+        console.error('Error fetching forward posts:', error);
+        res.status(500).json({ error: 'Failed to fetch forward posts' });
+    }
+});
+
+router.post('/forward/:id/mark-forwarded', async (req, res) => {
+    try {
+        const id = parseInt(req.params.id);
+        await prisma.forwardPost.update({
+            where: { id },
+            data: { forwarded: true }
+        });
+        
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Error marking post as forwarded:', error);
+        res.status(500).json({ error: 'Failed to mark post as forwarded' });
+    }
+});
+
 export default router; 

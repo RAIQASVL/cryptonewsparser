@@ -10,7 +10,7 @@ import {
     // generateNewPost, 
     // generateImagePrompt 
 } from './services/ai';
-import { TIMEZONE, CHANNELS, API_CONFIG } from './config/constants';
+import { TIMEZONE, API_CONFIG, NEWS_CHANNELS, FORWARD_CHANNELS } from './config/constants';
 import postsRouter from './routes/posts';
 
 // Load environment variables
@@ -28,6 +28,13 @@ interface PostData {
     validation?: boolean;
     new_post?: string;
     image_prompt?: string;
+}
+
+interface ForwardPostData {
+    channel: string;
+    message_id: number;
+    date: Date;
+    text: string;
 }
 
 async function startTelegramClient() {
@@ -98,7 +105,7 @@ async function checkNewPosts(client: TelegramClient) {
 
     const messagesToValidate: { id: number, text: string, channel: string, date: Date }[] = [];
 
-    for (const channelName of CHANNELS) {
+    for (const channelName of NEWS_CHANNELS) {
         try {
             console.log(`Fetching posts from: ${channelName}`);
             const channel = await client.getEntity(channelName);
@@ -167,15 +174,79 @@ async function checkNewPosts(client: TelegramClient) {
     }
 }
 
+async function checkForwardChannels(client: TelegramClient) {
+    const gmtPlus3 = moment().tz(TIMEZONE);
+    const timeWindowStart = gmtPlus3.clone().subtract(30, 'minutes');
+
+    console.log({
+        now: gmtPlus3.format(),
+        windowStart: timeWindowStart.format(),
+    }, 'Forward channels time window');
+
+    for (const channelName of FORWARD_CHANNELS) {
+        try {
+            console.log(`Checking forward channel: ${channelName}`);
+            const channel = await client.getEntity(channelName);
+            
+            const messages = await client.getMessages(channel, {
+                limit: 50,
+            });
+
+            console.log(`Fetched ${messages.length} messages from ${channelName}`);
+
+            for (const message of messages) {
+                const messageDate = moment.unix(message.date).tz(TIMEZONE);
+                
+                if (messageDate.isAfter(timeWindowStart)) {
+                    const messageContent = message.message || '';
+                    
+                    // Check if we already processed this message
+                    const existingPost = await prisma.forwardPost.findFirst({
+                        where: {
+                            channel: channelName,
+                            messageId: message.id
+                        }
+                    });
+
+                    if (!existingPost) {
+                        await prisma.forwardPost.create({
+                            data: {
+                                channel: channelName,
+                                channelId: channel.id.toString(),  // Just convert to string
+                                messageId: message.id,
+                                date: messageDate.toDate(),
+                                text: messageContent,
+                                forwarded: false
+                            }
+                        });
+                        console.log(`Saved new forward post from ${channelName} (ID: ${channel.id}), message ID: ${message.id}`);
+                    }
+                }
+            }
+        } catch (err) {
+            console.error(`Error checking forward channel ${channelName}:`, err);
+        }
+    }
+}
+
 async function main() {
     try {
         const client = await startTelegramClient();
+        
+        // Initial checks
         await checkNewPosts(client);
+        await checkForwardChannels(client);
 
+        // Set up intervals for both checks
         setInterval(async () => {
             console.log(`Checking for new posts... (${new Date().toISOString()})`);
             await checkNewPosts(client);
         }, API_CONFIG.CHECK_INTERVAL);
+
+        setInterval(async () => {
+            console.log(`Checking forward channels... (${new Date().toISOString()})`);
+            await checkForwardChannels(client);
+        }, API_CONFIG.FORWARD_CHECK_INTERVAL);
 
     } catch (error) {
         console.error('Error in main:', error);

@@ -1,5 +1,6 @@
 export const TIMEZONE = 'Etc/GMT-3';
-export const CHANNELS = [
+
+export const NEWS_CHANNELS = [
     'iansintel',
     'unfolded_defi',
     'cointelegraph',
@@ -9,10 +10,15 @@ export const CHANNELS = [
     'threadingontheedge',
 ];
 
+export const FORWARD_CHANNELS = [
+    'forward_test_xxx'
+];
+
 export const API_CONFIG = {
     API_ID: parseInt(process.env.API_ID || ''),
     API_HASH: process.env.API_HASH || '',
     PHONE_NUMBER: process.env.PHONE_NUMBER || '',
     CHECK_INTERVAL: parseInt(process.env.CHECK_INTERVAL || '5') * 60 * 1000,
+    FORWARD_CHECK_INTERVAL: parseInt(process.env.FORWARD_CHECK_INTERVAL || '5') * 60 * 1000,
     PORT: parseInt(process.env.PORT || '3000'),
 }; 
