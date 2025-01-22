@@ -16,6 +16,7 @@ export const FORWARD_CHANNELS = [
     'notpixel_channel',
     'sticker_community',
     'join_community',
+    'feelsguyagent',
 ];
 
 export const API_CONFIG = {
