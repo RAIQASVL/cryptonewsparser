@@ -11,7 +11,11 @@ export const NEWS_CHANNELS = [
 ];
 
 export const FORWARD_CHANNELS = [
-    'forward_test_xxx'
+    'earn_early',
+    'notcoin',
+    'notpixel_channel',
+    'sticker_community',
+    'join_community',
 ];
 
 export const API_CONFIG = {
