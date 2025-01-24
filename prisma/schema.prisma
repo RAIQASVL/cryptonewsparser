@@ -27,6 +27,7 @@ model ForwardPost {
   messageId    Int
   date         DateTime
   text         String
+  media        Json?
   forwarded    Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

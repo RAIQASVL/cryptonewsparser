@@ -199,6 +199,35 @@ async function checkForwardChannels(client: TelegramClient) {
                 
                 if (messageDate.isAfter(timeWindowStart)) {
                     const messageContent = message.message || '';
+                    let mediaInfo = null;
+
+                    // Handle media (images, etc)
+                    if (message.media) {
+                        try {
+                            mediaInfo = {
+                                type: message.media.className, // Photo, Document, etc
+                                // For photos
+                                ...(message.media.photo && {
+                                    photo: {
+                                        id: message.media.photo.id.toString(),
+                                        sizes: message.media.photo.sizes,
+                                        // You might want to download and store the actual file
+                                        // or just keep the metadata
+                                    }
+                                }),
+                                // For documents (like GIFs)
+                                ...(message.media.document && {
+                                    document: {
+                                        id: message.media.document.id.toString(),
+                                        mimeType: message.media.document.mimeType,
+                                        size: message.media.document.size,
+                                    }
+                                })
+                            };
+                        } catch (error) {
+                            console.error('Error processing media:', error);
+                        }
+                    }
                     
                     // Check if we already processed this message
                     const existingPost = await prisma.forwardPost.findFirst({
@@ -212,14 +241,15 @@ async function checkForwardChannels(client: TelegramClient) {
                         await prisma.forwardPost.create({
                             data: {
                                 channel: channelName,
-                                channelId: channel.id.toString(),  // Just convert to string
+                                channelId: channel.id.toString(),
                                 messageId: message.id,
                                 date: messageDate.toDate(),
                                 text: messageContent,
+                                media: mediaInfo, // Store media info
                                 forwarded: false
                             }
                         });
-                        console.log(`Saved new forward post from ${channelName} (ID: ${channel.id}), message ID: ${message.id}`);
+                        console.log(`Saved new forward post from ${channelName} (ID: ${channel.id}), message ID: ${message.id}, has media: ${!!mediaInfo}`);
                     }
                 }
             }
