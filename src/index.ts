@@ -5,6 +5,7 @@ import { config } from 'dotenv';
 import moment from 'moment-timezone';
 import express from 'express';
 import { prisma } from './services/db';
+import { Prisma } from '@prisma/client';
 import { 
     validateMessages, 
     // generateNewPost, 
@@ -204,26 +205,31 @@ async function checkForwardChannels(client: TelegramClient) {
                     // Handle media (images, etc)
                     if (message.media) {
                         try {
-                            mediaInfo = {
-                                type: message.media.className, // Photo, Document, etc
+                            mediaInfo = JSON.parse(JSON.stringify({
+                                type: message.media.className,
                                 // For photos
-                                ...(message.media.photo && {
+                                ...('photo' in message.media && 
+                                   message.media.photo && 
+                                   'id' in message.media.photo &&
+                                   'sizes' in message.media.photo && {
                                     photo: {
                                         id: message.media.photo.id.toString(),
                                         sizes: message.media.photo.sizes,
-                                        // You might want to download and store the actual file
-                                        // or just keep the metadata
                                     }
                                 }),
                                 // For documents (like GIFs)
-                                ...(message.media.document && {
+                                ...('document' in message.media && 
+                                   message.media.document &&
+                                   'id' in message.media.document &&
+                                   'mimeType' in message.media.document &&
+                                   'size' in message.media.document && {
                                     document: {
                                         id: message.media.document.id.toString(),
                                         mimeType: message.media.document.mimeType,
                                         size: message.media.document.size,
                                     }
                                 })
-                            };
+                            }));
                         } catch (error) {
                             console.error('Error processing media:', error);
                         }
@@ -238,16 +244,18 @@ async function checkForwardChannels(client: TelegramClient) {
                     });
 
                     if (!existingPost) {
+                        const createData: Prisma.ForwardPostCreateInput = {
+                            channel: channelName,
+                            channelId: channel.id.toString(),
+                            messageId: message.id,
+                            date: messageDate.toDate(),
+                            text: messageContent,
+                            media: mediaInfo,
+                            forwarded: false
+                        };
+                        
                         await prisma.forwardPost.create({
-                            data: {
-                                channel: channelName,
-                                channelId: channel.id.toString(),
-                                messageId: message.id,
-                                date: messageDate.toDate(),
-                                text: messageContent,
-                                media: mediaInfo, // Store media info
-                                forwarded: false
-                            }
+                            data: createData
                         });
                         console.log(`Saved new forward post from ${channelName} (ID: ${channel.id}), message ID: ${message.id}, has media: ${!!mediaInfo}`);
                     }
