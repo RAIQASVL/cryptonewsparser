@@ -8,6 +8,12 @@ export const NEWS_CHANNELS = [
     'notcoin',
     'notpixel_channel',
     'threadingontheedge',
+    'toncoin',
+    'earn_early',
+    'sticker_community',
+    'join_community',
+    'tonlive',
+    'dogs',
 ];
 
 export const FORWARD_CHANNELS = [
