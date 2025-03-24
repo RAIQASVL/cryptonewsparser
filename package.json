@@ -7,13 +7,28 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "getsession": "ts-node src/getSession.ts"
+    "getsession": "ts-node src/getSession.ts",
+    "test-parser": "ts-node src/scripts/testParser.ts",
+    "parse": "ts-node src/scripts/cryptoNewsParser.ts",
+    "parse:cointelegraph": "ts-node src/scripts/cryptoNewsParser.ts cointelegraph",
+    "parse:coindesk": "ts-node src/scripts/cryptoNewsParser.ts coindesk",
+    "parse:cryptonews": "ts-node src/scripts/cryptoNewsParser.ts cryptonews",
+    "parse:decrypt": "ts-node src/scripts/cryptoNewsParser.ts decrypt",
+    "parse:theblock": "ts-node src/scripts/cryptoNewsParser.ts theblock",
+    "parse:ambcrypto": "ts-node src/scripts/cryptoNewsParser.ts ambcrypto",
+    "parse:bitcoincom": "ts-node src/scripts/cryptoNewsParser.ts bitcoincom",
+    "parse:bitcoinmagazine": "ts-node src/scripts/cryptoNewsParser.ts bitcoinmagazine",
+    "parse:beincrypto": "ts-node src/scripts/cryptoNewsParser.ts beincrypto",
+    "parse:watcherguru": "ts-node src/scripts/cryptoNewsParser.ts watcherguru",
+    "parse:cryptoslate": "ts-node src/scripts/cryptoNewsParser.ts cryptoslate",
+    "parse:help": "ts-node src/scripts/testParser.ts --help"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@ai-sdk/anthropic": "^1.1.0",
+    "@playwright/test": "^1.51.1",
     "@prisma/client": "^5.6.0",
     "ai": "^4.1.0",
     "dotenv": "^16.3.1",
@@ -21,6 +36,7 @@
     "input": "^1.0.1",
     "moment-timezone": "^0.5.43",
     "openai": "^4.79.1",
+    "playwright": "^1.51.1",
     "prisma": "^5.6.0",
     "telegram": "^2.19.10"
   },
@@ -29,5 +45,6 @@
     "@types/node": "^20.10.0",
     "ts-node": "^10.9.1",
     "typescript": "^5.3.2"
-  }
+  },
+  "packageManager": "pnpm@10.6.1+sha512.40ee09af407fa9fbb5fbfb8e1cb40fbb74c0af0c3e10e9224d7b53c7658528615b2c92450e74cfad91e3a2dcafe3ce4050d80bda71d757756d2ce2b66213e9a3"
 }

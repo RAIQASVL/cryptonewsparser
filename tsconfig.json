@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "es2018",
     "module": "commonjs",
-    "lib": ["es2018", "esnext.asynciterable"],
+    "lib": ["es2018", "esnext.asynciterable", "dom"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -13,4 +13,4 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]
-} 
+}

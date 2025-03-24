@@ -1,3 +1,14 @@
+# Dependencies
 node_modules
 dist
 .env
+
+# Output files
+output/*
+
+# Ignore screenshots
+output/screenshots/
+
+# macOS system files
+.DS_Store
+**/.DS_Store
