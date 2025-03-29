@@ -1,18 +1,16 @@
 module.exports = {
-  apps: [{
-    name: "CryptoNewsParser",
-    script: "./dist/index.js",
-    env: {
-      NODE_ENV: "production",
+  apps: [
+    {
+      name: "crypto-news-daemon",
+      script: "dist/scripts/daemon.js",
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: "1G",
+      env: {
+        NODE_ENV: "production",
+      },
+      log_date_format: "YYYY-MM-DD HH:mm:ss",
     },
-    watch: false,
-    instances: 1,
-    autorestart: true,
-    max_memory_restart: "1G",
-    env_file: ".env",
-    error_file: "logs/error.log",
-    out_file: "logs/out.log",
-    log_file: "logs/combined.log",
-    time: true
-  }]
-} 
+  ],
+}; 

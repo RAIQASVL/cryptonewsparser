@@ -8,7 +8,7 @@ import {
   normalizeDate,
   ensureDirectoryExists,
   saveDebugInfo,
-  getStructuredOutputPath,
+  sanitizeNewsItem,
 } from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { bitcoinComConfig } from "../config/parsers/bitcoinCom.config";
@@ -137,7 +137,7 @@ export async function parseBitcoinCom(): Promise<NewsItem[]> {
         const articleContent = await extractBitcoinComArticle(page, fullUrl);
 
         // Create a news item object
-        const newsItem: NewsItem = {
+        const rawNewsItem = {
           source: "bitcoincom",
           url: fullUrl,
           title: item.title,
@@ -145,15 +145,14 @@ export async function parseBitcoinCom(): Promise<NewsItem[]> {
           published_at: normalizeDate(item.published_time),
           fetched_at: new Date().toISOString(),
           category: item.category,
-          image_url: item.image_url,
           author: item.author,
-          tags: [],
           content_type: "News",
-          reading_time: null,
-          views: null,
           full_content: articleContent,
+          preview_content: item.description || null,
         };
 
+        // Use sanitizeNewsItem
+        const newsItem = sanitizeNewsItem(rawNewsItem);
         news.push(newsItem);
 
         // Make a pause between requests
@@ -546,7 +545,7 @@ export class BitcoinComParser extends BaseParser {
           );
 
           // Create a news item object
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: article?.url || "",
             title: cleanText(article?.title || ""),
@@ -556,15 +555,16 @@ export class BitcoinComParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: article?.category ? cleanText(article?.category) : null,
-            image_url: article?.imageUrl || null,
             author: article?.author ? cleanText(article?.author) : null,
-            tags: [],
-            content_type: "Article",
-            reading_time: null,
-            views: null,
+            content_type: "News",
             full_content: fullContent,
+            preview_content: article?.description
+              ? cleanText(article?.description)
+              : null,
           };
 
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add a small delay between requests
@@ -745,7 +745,6 @@ export class BitcoinComParser extends BaseParser {
 
   protected async saveResults(results: NewsItem[]): Promise<void> {
     try {
-      // Use the standard output path with the parser name
       const outputPath = path.join("output", "bitcoincom.json");
 
       // Save the results
@@ -904,7 +903,8 @@ export class BitcoinComParser extends BaseParser {
           const news: NewsItem[] = [];
 
           for (const item of rssItems.slice(0, 10)) {
-            news.push({
+            const fullContent = await this.extractArticleContent(item.url);
+            const newsItem: NewsItem = {
               source: this.sourceName,
               url: item.url,
               title: cleanText(item.title),
@@ -914,14 +914,14 @@ export class BitcoinComParser extends BaseParser {
                 : new Date().toISOString(),
               fetched_at: new Date().toISOString(),
               category: item.category ? cleanText(item.category) : null,
-              image_url: null,
               author: null,
-              tags: [],
-              content_type: "Article",
-              reading_time: null,
-              views: null,
-              full_content: item.description || "",
-            });
+              content_type: "News",
+              full_content: fullContent,
+              preview_content: item.description
+                ? cleanText(item.description)
+                : null,
+            };
+            news.push(newsItem);
           }
 
           await this.saveResults(news);

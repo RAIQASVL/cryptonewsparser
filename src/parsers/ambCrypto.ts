@@ -148,12 +148,8 @@ export async function parseAMBCrypto(): Promise<NewsItem[]> {
           published_at: normalizeDate(item.published_time),
           fetched_at: new Date().toISOString(),
           category: item.category,
-          image_url: item.image_url,
           author: item.author,
-          tags: [],
           content_type: "News",
-          reading_time: null,
-          views: null,
           full_content: articleContent,
         };
 
@@ -502,14 +498,8 @@ export class AMBCryptoParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: article.category ? cleanText(article.category) : null,
-            image_url: article.image_url
-              ? normalizeUrl(article.image_url, this.baseUrl)
-              : null,
             author: article.author ? cleanText(article.author) : null,
-            tags: [],
-            content_type: "Article",
-            reading_time: null,
-            views: null,
+            content_type: "News",
             full_content: await this.extractArticleContent(fullUrl),
           };
 
@@ -751,12 +741,8 @@ export class AMBCryptoParser extends BaseParser {
                   : new Date().toISOString(),
                 fetched_at: new Date().toISOString(),
                 category: item.category ? cleanText(item.category) : null,
-                image_url: null,
                 author: item.author ? cleanText(item.author) : null,
-                tags: [],
-                content_type: "Article",
-                reading_time: null,
-                views: null,
+                content_type: "News",
                 full_content: fullContent,
               };
 
@@ -828,12 +814,8 @@ export class AMBCryptoParser extends BaseParser {
               published_at: new Date().toISOString(),
               fetched_at: new Date().toISOString(),
               category: null,
-              image_url: null,
               author: null,
-              tags: [],
-              content_type: "Article",
-              reading_time: null,
-              views: null,
+              content_type: "News",
               full_content: fullContent,
             };
 

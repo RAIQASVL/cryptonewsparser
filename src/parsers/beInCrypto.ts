@@ -1,5 +1,10 @@
 import { NewsItem } from "../types/news";
-import { cleanText, normalizeUrl, normalizeDate } from "../utils/parser-utils";
+import {
+  cleanText,
+  normalizeUrl,
+  normalizeDate,
+  sanitizeNewsItem,
+} from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { beInCryptoConfig } from "../config/parsers/beInCrypto.config";
 
@@ -70,95 +75,83 @@ export class BeInCryptoParser extends BaseParser {
       }
 
       // Find news items using a more reliable approach
-      const newsItems = await this.page.evaluate(() => {
-        // Target the news cards that have titles and links
-        const cards = Array.from(
-          document.querySelectorAll(
-            '[data-el="bic-c-news-big"], article.news-card, .multi-news-card'
-          )
-        );
+      const newsItems = await this.page.evaluate((selectors) => {
+        // Define an interface for the news item structure
+        interface NewsItemData {
+          title: string;
+          url: string;
+          description: string;
+          category: string | null;
+          author: string | null;
+          published_time: string;
+        }
 
-        return cards
-          .map((card) => {
-            // Extract link and title
-            const linkElement = card.querySelector("a[href]");
-            const titleElement = card.querySelector("h5, .title a, .s2, .s1");
+        const items: NewsItemData[] = [];
 
-            // Extract image
-            const imageElement = card.querySelector("img");
+        // Get all news elements
+        const elements = document.querySelectorAll(selectors.newsItem);
 
-            // Extract category
-            const categoryElement = card.querySelector(
-              ".flex a:first-child, .cat a"
-            );
+        elements.forEach((element) => {
+          // Only extract the fields we need
+          const titleElement = element.querySelector(selectors.title || "");
+          const linkElement = element.querySelector(selectors.link || "");
+          const descElement = element.querySelector(
+            selectors.description || ""
+          );
+          const categoryElement = element.querySelector(
+            selectors.category || ""
+          );
+          const authorElement = element.querySelector(selectors.author || "");
+          const dateElement = element.querySelector(selectors.date || "");
 
-            // Extract content type
-            const contentTypeElement = card.querySelector(".tpw_style1, .tpw");
+          // Skip items without title or URL
+          if (!titleElement || !linkElement) return;
 
-            // Extract time
-            const timeElement = card.querySelector("time, .ago");
+          // Fix the querySelector error by checking for null
+          const url = linkElement.getAttribute("href");
+          if (!url) return; // Skip if URL is null or undefined
 
-            // Extract reading time
-            const readingTimeElement = card.querySelector(
-              '.inline-flex.items-center span, [data-el="reading-time"]'
-            );
+          items.push({
+            title: titleElement.textContent?.trim() || "",
+            url: url,
+            description: descElement?.textContent?.trim() || "",
+            category: categoryElement?.textContent?.trim() || null,
+            author: authorElement?.textContent?.trim() || null,
+            published_time:
+              dateElement?.getAttribute("datetime") ||
+              dateElement?.textContent?.trim() ||
+              "",
+          });
+        });
 
-            return {
-              url: linkElement ? linkElement.getAttribute("href") : null,
-              title: titleElement ? titleElement.textContent?.trim() : null,
-              image_url: imageElement
-                ? imageElement.getAttribute("src") ||
-                  imageElement.getAttribute("data-src")
-                : null,
-              category: categoryElement
-                ? categoryElement.textContent?.trim()
-                : null,
-              content_type: contentTypeElement
-                ? contentTypeElement.textContent?.trim()
-                : null,
-              published_time: timeElement
-                ? timeElement.textContent?.trim() ||
-                  timeElement.getAttribute("datetime")
-                : null,
-              reading_time: readingTimeElement
-                ? readingTimeElement.textContent?.trim()
-                : null,
-              description: "", // Will be filled when visiting the article
-              is_video: false, // Default value
-              author: null, // Will be filled when visiting the article
-            };
-          })
-          .filter((item) => item.url && item.title); // Filter out items without URL or title
-      });
+        return items;
+      }, this.config.selectors);
 
       this.log(`Found ${newsItems.length} news items`, "info");
 
       // Process the first 10 items
       for (const item of newsItems.slice(0, 10)) {
         try {
-          // Create the newsItem object
           const newsItem: NewsItem = {
             source: this.sourceName,
-            url: normalizeUrl(item.url || "", this.baseUrl),
-            title: cleanText(item.title || ""),
+            url: normalizeUrl(item.url, this.baseUrl),
+            title: cleanText(item.title),
             description: cleanText(item.description || ""),
             published_at: item.published_time
               ? normalizeDate(item.published_time)
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
-            content_type: item.is_video ? "Video" : "Article",
-            reading_time: item.reading_time || null,
-            views: null,
+            content_type: "Article", // Default value
             full_content: await this.extractArticleContent(
-              normalizeUrl(item.url || "", this.baseUrl || "")
+              normalizeUrl(item.url, this.baseUrl)
             ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
-          // Push the newsItem to the news array
           news.push(newsItem);
         } catch (error) {
           this.log(`Error processing news item: ${error}`, "error");
@@ -331,7 +324,7 @@ export class BeInCryptoParser extends BaseParser {
             categories.push(this.cleanHtml(categoryMatch[1]));
           }
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url,
             title,
@@ -348,6 +341,8 @@ export class BeInCryptoParser extends BaseParser {
             full_content: fullContent || description,
           };
 
+          // Sanitize to match NewsItem type
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
         }
       }

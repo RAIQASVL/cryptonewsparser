@@ -9,7 +9,14 @@
     "forceConsistentCasingInFileNames": true,
     "outDir": "./dist",
     "typeRoots": ["./node_modules/@types", "./src/types"],
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@types/node": [
+        "./node_modules/.pnpm/@types+node@20.17.28/node_modules/@types/node"
+      ],
+      ".prisma/client": ["./node_modules/.prisma/client"]
+    },
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules"]

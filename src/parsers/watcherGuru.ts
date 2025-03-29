@@ -5,12 +5,13 @@ import {
   normalizeDate,
   ensureDirectoryExists,
   getStructuredOutputPath,
+  sanitizeNewsItem,
 } from "../utils/parser-utils";
 import { BaseParser, ParserConfig } from "./BaseParser";
 import { watcherGuruConfig } from "../config/parsers/watcherGuru.config";
 import * as path from "path";
 import * as fs from "fs";
-import { chromium } from "playwright";
+import { chromium, Browser } from "playwright";
 
 export class WatcherGuruParser extends BaseParser {
   private userAgents = [
@@ -24,25 +25,42 @@ export class WatcherGuruParser extends BaseParser {
     super("WatcherGuru", watcherGuruConfig);
   }
 
-  protected async init() {
-    // Use enhanced settings to bypass blocks
-    this.browser = await chromium.launch({
-      headless: false,
-      slowMo: 50,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-features=IsolateOrigins,site-per-process",
-        "--disable-site-isolation-trials",
-        "--disable-web-security",
-        "--disable-features=BlockInsecurePrivateNetworkRequests",
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--ignore-certificate-errors",
-        "--disable-extensions",
-        "--disable-default-apps",
-        "--window-size=1920,1080",
-      ],
-    });
+  protected async init(
+    options: { headless?: boolean; browser?: Browser } = {}
+  ) {
+    // Use provided browser or create a new one
+    if (options.browser) {
+      this.browser = options.browser;
+      this.log("Using shared browser instance");
+    } else {
+      // Use enhanced settings to bypass blocks
+      this.browser = await chromium.launch({
+        headless: options.headless !== undefined ? options.headless : true,
+        slowMo: 50,
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-features=IsolateOrigins,site-per-process",
+          "--disable-site-isolation-trials",
+          "--disable-web-security",
+          "--disable-features=BlockInsecurePrivateNetworkRequests",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--ignore-certificate-errors",
+          "--disable-extensions",
+          "--disable-default-apps",
+          "--window-size=1920,1080",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--disable-gpu",
+          "--hide-scrollbars",
+          "--mute-audio",
+          "--disable-infobars",
+        ],
+      });
+      this.log("Created new browser instance");
+    }
 
     // Create context with enhanced settings
     const context = await this.browser.newContext({
@@ -70,6 +88,44 @@ export class WatcherGuruParser extends BaseParser {
 
     this.page = await context.newPage();
     this.page.setDefaultTimeout(30000);
+
+    // Add anti-detection scripts
+    await this.page.addInitScript(() => {
+      // Overwrite the 'webdriver' property to prevent detection
+      Object.defineProperty(navigator, "webdriver", {
+        get: () => false,
+      });
+
+      // Overwrite the plugins to use a normal looking set
+      Object.defineProperty(navigator, "plugins", {
+        get: () => [1, 2, 3, 4, 5],
+      });
+
+      // Overwrite the languages property
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["en-US", "en"],
+      });
+
+      // Use type assertion for chrome
+      (window as any).chrome = { runtime: {} };
+
+      // Add a fake notification permission
+      if (window.Notification) {
+        const originalQuery = window.Notification.requestPermission;
+        window.Notification.requestPermission = function () {
+          return Promise.resolve("granted");
+        };
+      }
+
+      // Modify navigator properties
+      Object.defineProperty(navigator, "maxTouchPoints", {
+        get: () => 1,
+      });
+
+      // Add fake screen properties
+      Object.defineProperty(screen, "colorDepth", { get: () => 24 });
+      Object.defineProperty(screen, "pixelDepth", { get: () => 24 });
+    });
 
     // Intercept requests to modify headers
     await this.page.route("**", async (route) => {
@@ -221,25 +277,27 @@ export class WatcherGuruParser extends BaseParser {
       // Process extracted news items
       for (const item of newsItems) {
         try {
-          const newsItem: NewsItem = {
-            title: cleanText(item.title),
-            url: normalizeUrl(item.url, this.config.url),
-            published_at: normalizeDate(item.published_time),
-            fetched_at: new Date().toISOString(),
-            description: cleanText(item.description),
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.config.url)
-              : null,
-            author: item.author,
+          const rawNewsItem = {
             source: this.sourceName,
-            category: item.category || "Crypto",
-            tags: item.category ? [item.category] : ["Crypto"],
-            content_type: item.content_type || "Article",
-            reading_time: null,
-            views: null,
-            full_content: null,
+            url: normalizeUrl(item.url, this.config.url),
+            title: cleanText(item.title),
+            description: cleanText(item.description || ""),
+            published_at: item.published_time
+              ? normalizeDate(item.published_time)
+              : new Date().toISOString(),
+            fetched_at: new Date().toISOString(),
+            category: item.category ? cleanText(item.category) : null,
+            author: item.author ? cleanText(item.author) : null,
+            content_type: "Article",
+            full_content: await this.extractArticleContent(
+              normalizeUrl(item.url, this.config.url)
+            ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
         } catch (error) {
           this.log(`Error processing news item: ${error}`, "error");
@@ -407,14 +465,10 @@ export class WatcherGuruParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             description: title.trim(),
-            image_url: imageUrl || null,
             author: author || null,
             source: this.sourceName,
             category: category || "Crypto",
-            tags: [category || "Crypto"],
             content_type: "Article",
-            reading_time: null,
-            views: null,
             full_content: null,
           };
 
@@ -507,7 +561,7 @@ export class WatcherGuruParser extends BaseParser {
         .catch(() => title);
 
       if (title) {
-        const newsItem: NewsItem = {
+        const rawNewsItem = {
           title: title,
           url: url,
           published_at:
@@ -516,16 +570,14 @@ export class WatcherGuruParser extends BaseParser {
               : new Date().toISOString(),
           fetched_at: new Date().toISOString(),
           description: description,
-          image_url: imageUrl,
           author: author,
           source: this.sourceName,
           category: category,
-          tags: [category],
           content_type: "Article",
-          reading_time: null,
-          views: null,
           full_content: fullContent,
         };
+
+        const newsItem = sanitizeNewsItem(rawNewsItem);
 
         return newsItem;
       }
@@ -756,11 +808,13 @@ export class WatcherGuruParser extends BaseParser {
     }
   }
 
-  public async parse(): Promise<NewsItem[]> {
+  public async parse(
+    options: { headless?: boolean; browser?: Browser } = {}
+  ): Promise<NewsItem[]> {
     this.log("Starting to parse WatcherGuru...");
 
     try {
-      await this.init();
+      await this.init(options);
       let news = await this.extractNewsItems();
 
       // Enrich news with full content

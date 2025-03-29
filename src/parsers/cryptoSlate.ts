@@ -1,5 +1,10 @@
 import { NewsItem } from "../types/news";
-import { cleanText, normalizeUrl, normalizeDate} from "../utils/parser-utils";
+import {
+  cleanText,
+  normalizeUrl,
+  normalizeDate,
+  sanitizeNewsItem,
+} from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { cryptoSlateConfig } from "../config/parsers/cryptoSlate.config";
 
@@ -151,7 +156,7 @@ export class CryptoSlateParser extends BaseParser {
       for (const item of itemsToProcess) {
         try {
           // Create news item
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: normalizeUrl(item.url, this.baseUrl),
             title: cleanText(item.title),
@@ -161,19 +166,18 @@ export class CryptoSlateParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.baseUrl)
-              : null,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
             content_type: "Article",
-            reading_time: null,
-            views: null,
-            full_content: null,
+            full_content: await this.extractArticleContent(
+              normalizeUrl(item.url, this.baseUrl)
+            ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
-          // Extract full content
-          newsItem.full_content = await this.extractArticleContent(item.url);
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add random delay between requests
@@ -417,12 +421,8 @@ export class CryptoSlateParser extends BaseParser {
               published_at: new Date().toISOString(), // We don't know the exact date
               fetched_at: new Date().toISOString(),
               category: "Crypto",
-              tags: ["Crypto"],
-              image_url: null,
               author: null,
               content_type: "Article",
-              reading_time: null,
-              views: null,
               full_content: null,
             };
 
@@ -605,7 +605,7 @@ export class CryptoSlateParser extends BaseParser {
             categories.push(this.cleanHtml(categoryMatch[1]));
           }
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url,
             title,
@@ -613,15 +613,14 @@ export class CryptoSlateParser extends BaseParser {
             published_at: publishedAt,
             fetched_at: new Date().toISOString(),
             category: categories.length > 0 ? categories[0] : null,
-            tags: categories,
-            image_url: imageUrl,
             author,
             content_type: "Article",
-            reading_time: null,
-            views: null,
             full_content: fullContent || description,
+            preview_content: description,
           };
 
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
         }
       }

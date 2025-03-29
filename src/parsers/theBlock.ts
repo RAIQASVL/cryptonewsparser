@@ -1,26 +1,65 @@
-import { chromium, Page } from "playwright";
+import { chromium, Page, Browser } from "playwright";
 import { NewsItem } from "../types/news";
 import {
   cleanText,
   normalizeUrl,
   normalizeDate,
   getStructuredOutputPath,
+  sanitizeNewsItem,
 } from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { theBlockConfig } from "../config/parsers/theBlock.config";
 
-export async function parseTheBlock(): Promise<NewsItem[]> {
+export async function parseTheBlock(
+  options: { headless?: boolean } = {}
+): Promise<NewsItem[]> {
   console.log("Starting to parse The Block...");
   const news: NewsItem[] = [];
   const baseUrl = "https://www.theblock.co";
 
   const browser = await chromium.launch({
-    headless: false, // For debugging
+    headless: options.headless !== undefined ? options.headless : true,
     slowMo: 50,
+    args: [
+      "--disable-blink-features=AutomationControlled",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--disable-gpu",
+      "--hide-scrollbars",
+      "--mute-audio",
+      "--disable-infobars",
+      "--window-size=1920,1080",
+    ],
   });
 
   try {
-    const page = await browser.newPage();
+    const context = await browser.newContext({
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+      viewport: { width: 1920, height: 1080 },
+      deviceScaleFactor: 1,
+      hasTouch: false,
+      ignoreHTTPSErrors: true,
+    });
+
+    const page = await context.newPage();
+
+    // Add anti-detection script
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => false });
+      Object.defineProperty(navigator, "plugins", {
+        get: () => [1, 2, 3, 4, 5],
+      });
+      Object.defineProperty(navigator, "languages", {
+        get: () => ["en-US", "en"],
+      });
+      (window as any).chrome = { runtime: {} };
+    });
 
     await page.setExtraHTTPHeaders({
       "User-Agent":
@@ -137,12 +176,8 @@ export async function parseTheBlock(): Promise<NewsItem[]> {
           published_at: normalizeDate(item.published_time),
           fetched_at: new Date().toISOString(),
           category: item.category,
-          image_url: item.image_url,
           author: item.author,
-          tags: [],
           content_type: "News",
-          reading_time: null,
-          views: null,
           full_content: articleContent,
         };
 
@@ -261,17 +296,36 @@ export class TheBlockParser extends BaseParser {
     super("TheBlock", theBlockConfig);
   }
 
-  protected async init() {
-    // Override init method from BaseParser for TheBlock
-    this.browser = await chromium.launch({
-      headless: false,
-      slowMo: 50,
-      args: [
-        "--disable-blink-features=AutomationControlled",
-        "--disable-features=IsolateOrigins,site-per-process",
-        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      ],
-    });
+  protected async init(
+    options: { headless?: boolean; browser?: Browser } = {}
+  ) {
+    // Use provided browser or create a new one
+    if (options.browser) {
+      this.browser = options.browser;
+      this.log("Using shared browser instance");
+    } else {
+      this.browser = await chromium.launch({
+        headless: options.headless !== undefined ? options.headless : true,
+        slowMo: 50,
+        args: [
+          "--disable-blink-features=AutomationControlled",
+          "--disable-features=IsolateOrigins,site-per-process",
+          "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--disable-gpu",
+          "--hide-scrollbars",
+          "--mute-audio",
+          "--disable-infobars",
+          "--window-size=1920,1080",
+        ],
+      });
+      this.log("Created new browser instance");
+    }
 
     // Create context with additional parameters
     const context = await this.browser.newContext({
@@ -316,88 +370,50 @@ export class TheBlockParser extends BaseParser {
 
     // Override navigator properties to bypass automation detection
     await this.page.addInitScript(() => {
-      // Override webdriver
+      // Overwrite the 'webdriver' property to prevent detection
       Object.defineProperty(navigator, "webdriver", {
         get: () => false,
       });
 
-      // Override plugins
+      // Overwrite the plugins to use a normal looking set
       Object.defineProperty(navigator, "plugins", {
-        get: () => {
-          return [
-            {
-              0: {
-                type: "application/x-google-chrome-pdf",
-                suffixes: "pdf",
-                description: "Portable Document Format",
-                enabledPlugin: Plugin,
-              },
-              description: "Chrome PDF Plugin",
-              filename: "internal-pdf-viewer",
-              length: 1,
-              name: "Chrome PDF Plugin",
-            },
-          ];
-        },
+        get: () => [1, 2, 3, 4, 5],
       });
 
-      // Override languages
+      // Overwrite the languages property
       Object.defineProperty(navigator, "languages", {
         get: () => ["en-US", "en"],
       });
 
-      // Override permissions
-      const originalQuery = window.navigator.permissions.query;
-      window.navigator.permissions.query = (parameters) => {
-        if (parameters.name === "notifications") {
-          return Promise.resolve({
-            state: "granted",
-            name: parameters.name,
-            onchange: null,
-            addEventListener: function () {},
-            removeEventListener: function () {},
-            dispatchEvent: function () {
-              return true;
-            },
-          } as PermissionStatus);
-        }
-        return originalQuery(parameters);
-      };
+      // Use type assertion for chrome
+      (window as any).chrome = { runtime: {} };
 
-      // Add fake WebGL
-      const getParameter = WebGLRenderingContext.prototype.getParameter;
-      WebGLRenderingContext.prototype.getParameter = function (parameter) {
-        if (parameter === 37445) {
-          return "Intel Inc.";
-        }
-        if (parameter === 37446) {
-          return "Intel Iris Pro Graphics";
-        }
-        return getParameter.apply(this, [parameter]);
-      };
+      // Add a fake notification permission
+      if (window.Notification) {
+        const originalQuery = window.Notification.requestPermission;
+        window.Notification.requestPermission = function () {
+          return Promise.resolve("granted");
+        };
+      }
+
+      // Modify navigator properties
+      Object.defineProperty(navigator, "maxTouchPoints", {
+        get: () => 1,
+      });
+
+      // Add fake screen properties
+      Object.defineProperty(screen, "colorDepth", { get: () => 24 });
+      Object.defineProperty(screen, "pixelDepth", { get: () => 24 });
     });
 
-    // Set additional HTTP headers
-    await this.page.setExtraHTTPHeaders({
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      Accept:
-        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-      "Accept-Language": "en-US,en;q=0.9",
-      "Accept-Encoding": "gzip, deflate, br",
-      Referer: "https://www.google.com/",
-      "Sec-Ch-Ua":
-        '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-      "Sec-Ch-Ua-Mobile": "?0",
-      "Sec-Ch-Ua-Platform": '"Windows"',
-      "Sec-Fetch-Dest": "document",
-      "Sec-Fetch-Mode": "navigate",
-      "Sec-Fetch-Site": "cross-site",
-      "Sec-Fetch-User": "?1",
-      "Upgrade-Insecure-Requests": "1",
-      Connection: "keep-alive",
-      "Cache-Control": "max-age=0",
-    });
+    // Block trackers and analytics
+    await this.page.route(
+      "**/(google-analytics|gtm|facebook|doubleclick|analytics).*.(js|php)",
+      (route) => route.abort()
+    );
+
+    // Add random mouse movements to simulate human behavior
+    await this.simulateHumanBehavior();
   }
 
   protected async extractNewsItems(): Promise<NewsItem[]> {
@@ -517,7 +533,7 @@ export class TheBlockParser extends BaseParser {
 
           this.log(`Processing article: ${fullUrl}`);
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: fullUrl,
             title: cleanText(article.title),
@@ -527,17 +543,15 @@ export class TheBlockParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: article.category ? cleanText(article.category) : null,
-            image_url: article.image_url
-              ? normalizeUrl(article.image_url, this.baseUrl)
-              : null,
             author: article.author ? cleanText(article.author) : null,
-            tags: [],
-            content_type: "Article",
-            reading_time: null,
-            views: null,
+            content_type: "News",
             full_content: await this.extractArticleContent(fullUrl),
+            preview_content: article.description
+              ? cleanText(article.description)
+              : null,
           };
 
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add a small delay between requests
@@ -584,27 +598,40 @@ export class TheBlockParser extends BaseParser {
   private async simulateHumanBehavior(): Promise<void> {
     if (!this.page) return;
 
-    // Simulate scrolling the page
-    for (let i = 0; i < 5; i++) {
-      await this.page.mouse.wheel(0, 100 + Math.random() * 300);
-      await new Promise((resolve) =>
-        setTimeout(resolve, 500 + Math.random() * 1000)
-      );
-    }
+    try {
+      // Scroll down slowly
+      await this.page.evaluate(() => {
+        return new Promise<void>((resolve) => {
+          let totalHeight = 0;
+          const distance = 100;
+          const timer = setInterval(() => {
+            window.scrollBy(0, distance);
+            totalHeight += distance;
 
-    // Simulate mouse movement
-    const viewportSize = await this.page.viewportSize();
-    if (viewportSize) {
-      for (let i = 0; i < 3; i++) {
-        await this.page.mouse.move(
-          Math.random() * viewportSize.width,
-          Math.random() * viewportSize.height,
-          { steps: 10 }
-        );
-        await new Promise((resolve) =>
-          setTimeout(resolve, 300 + Math.random() * 700)
-        );
+            if (totalHeight >= document.body.scrollHeight / 2) {
+              clearInterval(timer);
+              resolve();
+            }
+          }, 100);
+        });
+      });
+
+      // Random delay
+      await this.randomDelay(1000, 2000);
+
+      // Move mouse to random positions
+      const viewportSize = await this.page.viewportSize();
+      if (viewportSize) {
+        const { width, height } = viewportSize;
+        for (let i = 0; i < 3; i++) {
+          const x = Math.floor(Math.random() * width);
+          const y = Math.floor(Math.random() * height);
+          await this.page.mouse.move(x, y);
+          await this.randomDelay(500, 1000);
+        }
       }
+    } catch (error) {
+      this.log(`Error during human behavior simulation: ${error}`, "warn");
     }
   }
 
@@ -720,7 +747,7 @@ export class TheBlockParser extends BaseParser {
       for (const item of emergencyItems) {
         const fullUrl = normalizeUrl(item.url, this.baseUrl);
 
-        const newsItem: NewsItem = {
+        const rawNewsItem = {
           source: this.sourceName,
           url: fullUrl,
           title: cleanText(item.title),
@@ -730,13 +757,14 @@ export class TheBlockParser extends BaseParser {
           category: null,
           image_url: null,
           author: null,
-          tags: [],
-          content_type: "Article",
-          reading_time: null,
-          views: null,
+          content_type: "News",
           full_content: `# ${item.title}\n\n${item.text}\n\n(Extracted in emergency mode due to blocking)`,
+          preview_content: item.text
+            ? cleanText(item.text.substring(0, 200) + "...")
+            : null,
         };
 
+        const newsItem = sanitizeNewsItem(rawNewsItem);
         news.push(newsItem);
       }
 
@@ -791,7 +819,7 @@ export class TheBlockParser extends BaseParser {
 
           for (const item of rssItems.slice(0, 10)) {
             try {
-              const newsItem: NewsItem = {
+              const rawNewsItem = {
                 source: this.sourceName,
                 url: item.url,
                 title: cleanText(item.title),
@@ -801,15 +829,15 @@ export class TheBlockParser extends BaseParser {
                   : new Date().toISOString(),
                 fetched_at: new Date().toISOString(),
                 category: item.category ? cleanText(item.category) : null,
-                image_url: null,
-                author: null,
-                tags: [],
-                content_type: "Article",
-                reading_time: null,
-                views: null,
+                author: item.author ? cleanText(item.author) : null,
+                content_type: "News",
                 full_content: item.description || "",
+                preview_content: item.description
+                  ? cleanText(item.description)
+                  : null,
               };
 
+              const newsItem = sanitizeNewsItem(rawNewsItem);
               news.push(newsItem);
             } catch (error) {
               this.log(`Error processing RSS item: ${error}`, "error");
@@ -859,7 +887,7 @@ export class TheBlockParser extends BaseParser {
           try {
             if (!item.url.includes("theblock.co")) continue;
 
-            const newsItem: NewsItem = {
+            const rawNewsItem = {
               source: this.sourceName,
               url: item.url,
               title: cleanText(item.title),
@@ -869,14 +897,15 @@ export class TheBlockParser extends BaseParser {
               category: null,
               image_url: null,
               author: null,
-              tags: [],
-              content_type: "Article",
-              reading_time: null,
-              views: null,
+              content_type: "News",
               full_content:
                 item.description || "Content unavailable due to blocking",
+              preview_content: item.description
+                ? cleanText(item.description)
+                : null,
             };
 
+            const newsItem = sanitizeNewsItem(rawNewsItem);
             news.push(newsItem);
           } catch (error) {
             this.log(`Error processing search result: ${error}`, "error");

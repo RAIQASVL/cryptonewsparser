@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { Page } from "playwright";
+import { NewsItem } from "../types/news";
 
 // Function to clean text from extra spaces and HTML
 export function cleanText(text: string): string {
@@ -150,4 +151,20 @@ export function getStructuredOutputPath(sourceName: string): string {
   ensureDirectoryExists(outputPath);
 
   return outputPath;
+}
+
+export function sanitizeNewsItem(item: any): NewsItem {
+  return {
+    source: item.source,
+    url: item.url,
+    title: item.title,
+    description: item.description,
+    published_at: item.published_at,
+    fetched_at: item.fetched_at,
+    category: item.category,
+    author: item.author,
+    content_type: item.content_type,
+    full_content: item.full_content,
+    preview_content: item.preview_content,
+  };
 }

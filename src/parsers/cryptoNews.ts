@@ -2,7 +2,12 @@ import { chromium, Page } from "playwright";
 import * as path from "path";
 import * as fs from "fs";
 import { NewsItem } from "../types/news";
-import { cleanText, normalizeUrl, normalizeDate } from "../utils/parser-utils";
+import {
+  cleanText,
+  normalizeUrl,
+  normalizeDate,
+  sanitizeNewsItem,
+} from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { cryptoNewsConfig } from "../config/parsers/cryptoNews.config";
 import { getStructuredOutputPath } from "../utils/parser-utils";
@@ -50,7 +55,7 @@ export class CryptoNewsParser extends BaseParser {
 
       // Extract news items
       const newsItems = await this.page.evaluate((selectors) => {
-        const items: NewsItem[] = [];
+        const items: any[] = [];
 
         // Check if news container exists
         const container = document.querySelector(selectors.newsContainer);
@@ -158,7 +163,7 @@ export class CryptoNewsParser extends BaseParser {
 
       for (const item of itemsToProcess) {
         try {
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: normalizeUrl(item.url, this.baseUrl),
             title: cleanText(item.title),
@@ -168,30 +173,18 @@ export class CryptoNewsParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.baseUrl)
-              : null,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
             content_type: "Article",
-            reading_time: null,
-            views: null,
-            full_content: null,
+            full_content: await this.extractArticleContent(
+              normalizeUrl(item.url, this.baseUrl)
+            ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
-          // Extract full article content
-          try {
-            newsItem.full_content = await this.extractArticleContent(
-              newsItem.url
-            );
-          } catch (error) {
-            this.log(
-              `Error extracting content for ${newsItem.url}: ${error}`,
-              "error"
-            );
-            newsItem.full_content = `⚠️ Error extracting content: ${error}`;
-          }
-
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add random delay between requests
@@ -373,7 +366,7 @@ export class CryptoNewsParser extends BaseParser {
 
           for (const item of rssItems.slice(0, 10)) {
             try {
-              const newsItem: NewsItem = {
+              const rawNewsItem = {
                 source: this.sourceName,
                 url: item.url,
                 title: cleanText(item.title),
@@ -383,15 +376,16 @@ export class CryptoNewsParser extends BaseParser {
                   : new Date().toISOString(),
                 fetched_at: new Date().toISOString(),
                 category: item.category ? cleanText(item.category) : null,
-                image_url: null,
-                author: null,
-                tags: [],
+                author: item.author ? cleanText(item.author) : null,
                 content_type: "Article",
-                reading_time: null,
-                views: null,
                 full_content: item.description || "",
+                preview_content: item.description
+                  ? cleanText(item.description)
+                  : null,
               };
 
+              // Use sanitizeNewsItem
+              const newsItem = sanitizeNewsItem(rawNewsItem);
               news.push(newsItem);
             } catch (error) {
               this.log(`Error processing RSS item: ${error}`, "error");
@@ -431,7 +425,7 @@ export class CryptoNewsParser extends BaseParser {
 
     try {
       const newsItems = await this.page.evaluate(() => {
-        const items: NewsItem[] = [];
+        const items: any[] = [];
         const articles = document.querySelectorAll(
           "article, .article, .news-item"
         );
@@ -447,16 +441,6 @@ export class CryptoNewsParser extends BaseParser {
               url: linkEl.getAttribute("href") || "",
               description: descEl?.textContent?.trim() || "",
               published_at: "",
-              author: null,
-              category: null,
-              image_url: null,
-              source: this.sourceName,
-              fetched_at: new Date().toISOString(),
-              tags: [],
-              content_type: "Article",
-              reading_time: null,
-              views: null,
-              full_content: null,
             });
           }
         });
@@ -474,22 +458,27 @@ export class CryptoNewsParser extends BaseParser {
           ? item.url
           : `https://cryptonews.com${item.url}`;
 
-        news.push({
+        const rawNewsItem = {
           source: this.sourceName,
           url,
           title: cleanText(item.title),
           description: cleanText(item.description || ""),
-          published_at: new Date().toISOString(),
+          published_at: item.published_at
+            ? normalizeDate(item.published_at)
+            : new Date().toISOString(),
           fetched_at: new Date().toISOString(),
-          category: null,
-          image_url: null,
-          author: null,
-          tags: [],
+          category: item.category ? cleanText(item.category) : null,
+          author: item.author ? cleanText(item.author) : null,
           content_type: "Article",
-          reading_time: null,
-          views: null,
           full_content: item.description || "",
-        });
+          preview_content: item.description
+            ? cleanText(item.description)
+            : null,
+        };
+
+        // Use sanitizeNewsItem
+        const newsItem = sanitizeNewsItem(rawNewsItem);
+        news.push(newsItem);
       }
 
       return news;

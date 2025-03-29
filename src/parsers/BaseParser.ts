@@ -66,30 +66,46 @@ export abstract class BaseParser {
     this.baseUrl = new URL(config.url).origin;
   }
 
-  protected async init() {
-    this.browser = await chromium.launch({
-      headless: false,
-      slowMo: 50,
-    });
+  protected async init(
+    options: { headless?: boolean; browser?: Browser } = {}
+  ) {
+    // Use provided browser or create a new one
+    if (options.browser) {
+      this.browser = options.browser;
+      this.log("Using shared browser instance");
+    } else {
+      this.browser = await chromium.launch({
+        headless: options.headless !== undefined ? options.headless : true,
+        slowMo: 50,
+      });
+      this.log("Created new browser instance");
+    }
 
-    // Create context with resource blocking
+    // Create context with enhanced resource blocking
     const context = await this.browser.newContext({
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36",
+      viewport: { width: 1920, height: 1080 },
+      javaScriptEnabled: true,
+      bypassCSP: true,
+      ignoreHTTPSErrors: true,
     });
 
-    // Block unnecessary resources for faster loading
-    await context.route("**/*.{png,jpg,jpeg,gif,webp,svg,ico}", (route) => {
-      if (Math.random() > 0.5) {
-        // Load only part of images for realism
-        return route.abort();
-      }
-      return route.continue();
-    });
-
+    // Block all images, fonts, stylesheets, and other non-essential resources
+    await context.route(
+      "**/*.{png,jpg,jpeg,gif,webp,svg,ico,ttf,woff,woff2,eot}",
+      (route) => route.abort()
+    );
+    await context.route("**/*.css", (route) => route.abort());
     await context.route("**/analytics.js", (route) => route.abort());
     await context.route("**/gtm.js", (route) => route.abort());
     await context.route("**/fbevents.js", (route) => route.abort());
+    await context.route("**/ga.js", (route) => route.abort());
+    await context.route("**/adsense.js", (route) => route.abort());
+    await context.route("**/adsbygoogle.js", (route) => route.abort());
+    await context.route("**/doubleclick.net/**", (route) => route.abort());
+    await context.route("**/facebook.net/**", (route) => route.abort());
+    await context.route("**/google-analytics.com/**", (route) => route.abort());
 
     this.page = await context.newPage();
     await this.setUserAgent();
@@ -108,9 +124,11 @@ export abstract class BaseParser {
     });
   }
 
-  async parse(): Promise<NewsItem[]> {
+  async parse(
+    options: { headless?: boolean; browser?: Browser } = {}
+  ): Promise<NewsItem[]> {
     try {
-      await this.init();
+      await this.init(options);
       this.log(`Starting to parse ${this.sourceName}...`);
       const items = await this.extractNewsItems();
       this.log(
@@ -126,12 +144,19 @@ export abstract class BaseParser {
       );
       return [];
     } finally {
-      await this.cleanup();
+      // Only close the browser if we created it ourselves
+      if (!options.browser) {
+        await this.cleanup();
+      }
     }
   }
 
   protected async cleanup() {
-    await this.browser?.close();
+    // Only close the page, not the browser if it's shared
+    if (this.page) {
+      await this.page.close();
+      this.page = null;
+    }
   }
 
   protected async randomDelay(min = 2000, max = 5000) {
@@ -332,14 +357,8 @@ export abstract class BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.baseUrl)
-              : null,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
             content_type: "Article",
-            reading_time: null,
-            views: null,
             full_content: await this.extractArticleContent(
               normalizeUrl(item.url, this.baseUrl)
             ),

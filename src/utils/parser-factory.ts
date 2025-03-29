@@ -10,6 +10,7 @@ import { BitcoinComParser } from "../parsers/bitcoinCom";
 import { BeInCryptoParser } from "../parsers/beInCrypto";
 import { WatcherGuruParser } from "../parsers/watcherGuru";
 import { CryptoSlateParser } from "../parsers/cryptoSlate";
+import { Browser } from "playwright";
 
 export type SiteName =
   | "cryptonews"
@@ -86,13 +87,19 @@ export class ParserFactory {
   }
 
   // Method to run a parser and save the results
-  static async runParser(siteName: SiteName): Promise<NewsItem[]> {
+  static async runParser(
+    siteName: SiteName,
+    options: { headless?: boolean; browser?: Browser } = {}
+  ): Promise<NewsItem[]> {
     const parsers = this.getParser(siteName);
     const results: NewsItem[] = [];
 
     for (const parser of parsers) {
       try {
-        const items = await parser.parse();
+        const items = await parser.parse({
+          headless: options.headless,
+          browser: options.browser,
+        });
         results.push(...items);
       } catch (error) {
         console.error(`Error parsing ${parser.constructor.name}:`, error);

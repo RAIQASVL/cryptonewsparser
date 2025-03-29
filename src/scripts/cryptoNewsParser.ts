@@ -3,6 +3,7 @@ import * as path from "path";
 import * as fs from "fs";
 import { ensureDirectoryExists } from "../utils/parser-utils";
 import { NewsItem } from "../types/news";
+import { saveNewsItems, disconnect } from "../services/db";
 
 // Main script for parsing crypto news
 async function main() {
@@ -69,6 +70,12 @@ async function main() {
       });
 
       console.log(`\nTotal ${parser} items: ${results.length}`);
+
+      // Save to database
+      if (results.length > 0) {
+        await saveNewsItems(results);
+        console.log(`Saved ${results.length} ${parser} items to database`);
+      }
     } catch (error) {
       console.error(`Error running ${parser} parser:`, error);
     }
@@ -97,6 +104,9 @@ async function main() {
     );
     console.log(`Total news items across all sources: ${allNews.length}`);
   }
+
+  // Disconnect from the database
+  await disconnect();
 
   console.log("\n=== Parsing completed ===");
 }

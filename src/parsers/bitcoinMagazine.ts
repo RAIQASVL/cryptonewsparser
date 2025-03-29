@@ -1,5 +1,10 @@
 import { NewsItem } from "../types/news";
-import { cleanText, normalizeUrl, normalizeDate } from "../utils/parser-utils";
+import {
+  cleanText,
+  normalizeUrl,
+  normalizeDate,
+  sanitizeNewsItem,
+} from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { bitcoinMagazineConfig } from "../config/parsers/bitcoinMagazine.config";
 
@@ -192,7 +197,7 @@ export class BitcoinMagazineParser extends BaseParser {
 
       for (const item of itemsToProcess) {
         try {
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: normalizeUrl(item.url, this.baseUrl),
             title: cleanText(item.title),
@@ -202,56 +207,17 @@ export class BitcoinMagazineParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
             content_type: "Article",
-            reading_time: null,
-            views: null,
-            full_content: "",
+            full_content: await this.extractArticleContent(
+              normalizeUrl(item.url, this.baseUrl)
+            ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
-          try {
-            newsItem.full_content = await this.extractArticleContent(
-              newsItem.url
-            );
-
-            // Check if result contains block message
-            if (newsItem.full_content.includes("Article access blocked")) {
-              consecutiveBlockCount++;
-              this.log(`Consecutive block #${consecutiveBlockCount}`, "warn");
-
-              // If consecutive block limit reached, stop parsing
-              if (consecutiveBlockCount >= MAX_CONSECUTIVE_BLOCKS) {
-                this.log(
-                  `Consecutive block limit reached (${MAX_CONSECUTIVE_BLOCKS}). Stopping parsing.`,
-                  "error"
-                );
-                this.log("Switching to alternative extraction method", "info");
-
-                // Add already collected news
-                if (news.length > 0) {
-                  await this.saveResults(news);
-                }
-
-                // Try alternative method
-                const alternativeNews =
-                  await this.extractNewsItemsAlternative();
-                return [...news, ...alternativeNews];
-              }
-            } else {
-              // Reset counter if article was successfully extracted
-              consecutiveBlockCount = 0;
-            }
-          } catch (error) {
-            this.log(
-              `Error extracting content for ${newsItem.url}: ${error}`,
-              "error"
-            );
-            newsItem.full_content = `⚠️ Error extracting content: ${error}`;
-            consecutiveBlockCount++;
-          }
-
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add random delay between requests
@@ -574,7 +540,7 @@ export class BitcoinMagazineParser extends BaseParser {
             categories.push(this.cleanHtml(categoryMatch[1]));
           }
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url,
             title,
@@ -582,15 +548,13 @@ export class BitcoinMagazineParser extends BaseParser {
             published_at: publishedAt,
             fetched_at: new Date().toISOString(),
             category: categories.length > 0 ? categories[0] : null,
-            tags: categories,
-            image_url: imageUrl,
             author,
             content_type: "Article",
-            reading_time: null,
-            views: null,
             full_content: fullContent || description,
+            preview_content: description,
           };
 
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
         }
       }

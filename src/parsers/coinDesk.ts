@@ -6,6 +6,7 @@ import {
   normalizeDate,
   saveDebugInfo,
   getStructuredOutputPath,
+  sanitizeNewsItem,
 } from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { coinDeskConfig } from "../config/parsers/coinDesk.config";
@@ -142,7 +143,7 @@ export async function parseCoinDesk(): Promise<NewsItem[]> {
         // Extract full article content
         const articleContent = await extractCoinDeskArticle(page, fullUrl);
 
-        const newsItem: NewsItem = {
+        const rawNewsItem = {
           source: "coindesk",
           url: fullUrl,
           title: item.title,
@@ -150,15 +151,13 @@ export async function parseCoinDesk(): Promise<NewsItem[]> {
           published_at: normalizeDate(item.published_time),
           fetched_at: new Date().toISOString(),
           category: item.category,
-          image_url: item.image_url,
           author: item.author,
-          tags: [],
           content_type: "News",
-          reading_time: null,
-          views: null,
           full_content: articleContent,
+          preview_content: item.description || null,
         };
 
+        const newsItem = sanitizeNewsItem(rawNewsItem);
         news.push(newsItem);
 
         await page.waitForTimeout(2000);
@@ -362,7 +361,7 @@ export class CoinDeskParser extends BaseParser {
 
           this.log(`Processing article: ${fullUrl}`);
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: fullUrl,
             title: cleanText(item.title),
@@ -372,17 +371,15 @@ export class CoinDeskParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.baseUrl)
-              : null,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
-            content_type: "Article",
-            reading_time: null,
-            views: null,
+            content_type: "News",
             full_content: await this.extractArticleContent(fullUrl),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add a small delay between requests

@@ -9,6 +9,7 @@ import {
   ensureDirectoryExists,
   saveDebugInfo,
   getStructuredOutputPath,
+  sanitizeNewsItem,
 } from "../utils/parser-utils";
 import { BaseParser } from "./BaseParser";
 import { decryptConfig } from "../config/parsers/decrypt.config";
@@ -140,12 +141,8 @@ export async function parseDecrypt(): Promise<NewsItem[]> {
           published_at: normalizeDate(item.published_time),
           fetched_at: new Date().toISOString(),
           category: item.category,
-          image_url: item.image_url,
           author: item.author,
-          tags: [],
           content_type: "News",
-          reading_time: null,
-          views: null,
           full_content: articleContent,
         };
 
@@ -457,7 +454,7 @@ export class DecryptParser extends BaseParser {
 
           this.log(`Processing article: ${fullUrl}`);
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: fullUrl,
             title: cleanText(article.title),
@@ -467,17 +464,15 @@ export class DecryptParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: article.category ? cleanText(article.category) : null,
-            image_url: article.image_url
-              ? normalizeUrl(article.image_url, this.baseUrl)
-              : null,
             author: article.author ? cleanText(article.author) : null,
-            tags: [],
             content_type: "Article",
-            reading_time: null,
-            views: null,
             full_content: await this.extractArticleContent(fullUrl),
+            preview_content: article.description
+              ? cleanText(article.description)
+              : null,
           };
 
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add a small delay between requests
@@ -702,7 +697,7 @@ export class DecryptParser extends BaseParser {
               // Navigate to article page to extract full content
               const fullContent = await this.extractArticleContent(item.url);
 
-              const newsItem: NewsItem = {
+              const rawNewsItem = {
                 source: this.sourceName,
                 url: item.url,
                 title: cleanText(item.title),
@@ -712,15 +707,13 @@ export class DecryptParser extends BaseParser {
                   : new Date().toISOString(),
                 fetched_at: new Date().toISOString(),
                 category: item.category ? cleanText(item.category) : null,
-                image_url: null,
                 author: item.author ? cleanText(item.author) : null,
-                tags: [],
                 content_type: "Article",
-                reading_time: null,
-                views: null,
-                full_content: fullContent,
+                full_content: fullContent || item.description,
+                preview_content: item.description,
               };
 
+              const newsItem = sanitizeNewsItem(rawNewsItem);
               news.push(newsItem);
 
               // Add a small delay between requests

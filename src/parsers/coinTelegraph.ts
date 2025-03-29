@@ -1,7 +1,12 @@
 import { BaseParser } from "./BaseParser";
 import { coinTelegraphConfig } from "../config/parsers/coinTelegraph.config";
 import { NewsItem } from "../types/news";
-import { cleanText, normalizeUrl, normalizeDate } from "../utils/parser-utils";
+import {
+  cleanText,
+  normalizeUrl,
+  normalizeDate,
+  sanitizeNewsItem,
+} from "../utils/parser-utils";
 
 export class CoinTelegraphParser extends BaseParser {
   constructor() {
@@ -116,7 +121,7 @@ export class CoinTelegraphParser extends BaseParser {
 
       for (const item of itemsToProcess) {
         try {
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url: normalizeUrl(item.url, this.baseUrl),
             title: cleanText(item.title),
@@ -126,30 +131,18 @@ export class CoinTelegraphParser extends BaseParser {
               : new Date().toISOString(),
             fetched_at: new Date().toISOString(),
             category: item.category ? cleanText(item.category) : null,
-            image_url: item.image_url
-              ? normalizeUrl(item.image_url, this.baseUrl)
-              : null,
             author: item.author ? cleanText(item.author) : null,
-            tags: [],
-            content_type: item.is_video ? "Video" : "Article",
-            reading_time: null,
-            views: null,
-            full_content: null,
+            content_type: "Article",
+            full_content: await this.extractArticleContent(
+              normalizeUrl(item.url, this.baseUrl)
+            ),
+            preview_content: item.description
+              ? cleanText(item.description)
+              : null,
           };
 
-          // Extract full article content
-          try {
-            newsItem.full_content = await this.extractArticleContent(
-              newsItem.url
-            );
-          } catch (error) {
-            this.log(
-              `Error extracting content for ${newsItem.url}: ${error}`,
-              "error"
-            );
-            newsItem.full_content = `⚠️ Error extracting content: ${error}`;
-          }
-
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
 
           // Add random delay between requests
@@ -382,7 +375,7 @@ export class CoinTelegraphParser extends BaseParser {
             categories.push(this.cleanHtml(categoryMatch[1]));
           }
 
-          const newsItem: NewsItem = {
+          const rawNewsItem = {
             source: this.sourceName,
             url,
             title,
@@ -390,15 +383,14 @@ export class CoinTelegraphParser extends BaseParser {
             published_at: publishedAt,
             fetched_at: new Date().toISOString(),
             category: categories.length > 0 ? categories[0] : null,
-            tags: categories,
-            image_url: imageUrl,
             author,
-            content_type: "Article",
-            reading_time: null,
-            views: null,
+            content_type: "News",
             full_content: fullContent || description,
+            preview_content: description ? cleanText(description) : null,
           };
 
+          // Use sanitizeNewsItem
+          const newsItem = sanitizeNewsItem(rawNewsItem);
           news.push(newsItem);
         }
       }
