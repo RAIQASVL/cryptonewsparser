@@ -1,349 +1,326 @@
-# Crypto News Parser System Documentation
+# Crypto News Parser
 
-## System Overview
+## Project Overview
 
-This project is a comprehensive crypto news parsing system designed to extract news articles from various cryptocurrency and financial news websites. The system uses Playwright for browser automation to navigate websites, extract news items, and save them in a structured format. Data is stored in a PostgreSQL database (hosted on NEON.tech) and can be analyzed through built-in visualization tools.
+Crypto News Parser is a comprehensive platform for collecting, analyzing, and displaying cryptocurrency news from multiple sources. The project uses a monorepo structure with a modern tech stack including TypeScript, Node.js, Next.js, Prisma, and Playwright.
+
+## Key Features
+
+- **Multi-Source News Aggregation**: Automatically scrapes and parses news from 12+ crypto news websites
+- **Resilient Parsing**: Multiple fallback strategies to handle site changes, blocks, and CAPTCHAs
+- **Content Analysis**: Extracts and analyzes news content, identifying trends and topics
+- **Modern Web Interface**: Clean, responsive UI for browsing and managing news items
+- **Scheduled Updates**: Daemon process for regular news collection
+- **Database Storage**: Persistent storage with Prisma ORM
+- **API Access**: RESTful API for accessing news data
 
 ## Project Structure
 
+The project is organized as a monorepo with the following main components:
+
 ```
-src/
-├── cli.ts                 # Command-line interface for the system
-├── config/parsers/        # Configuration for each news source
-├── parsers/               # Parser implementations for each news source
-├── scripts/               # CLI scripts to run parsers and utilities
-│   └── daemon.ts          # Background processing daemon
-├── services/              # Core services (database, analytics, export)
-├── types/                 # TypeScript type definitions
-└── utils/                 # Utility functions and factory pattern
-output/                    # Output directory for parsed news and analytics
-prisma/                    # Database schema and migrations
+crypto-news-parser/
+├── apps/
+│   ├── api/                 # Backend API and parsers
+│   │   ├── prisma/          # Database schema and migrations
+│   │   ├── src/
+│   │   │   ├── api/         # API endpoints
+│   │   │   ├── config/      # Configuration files
+│   │   │   ├── parsers/     # News site parsers
+│   │   │   ├── scripts/     # CLI and daemon scripts
+│   │   │   ├── services/    # Core services (DB, analytics)
+│   │   │   └── utils/       # Utility functions
+│   │   └── output/          # Parsed news output
+│   └── web/                 # Frontend Next.js application
+│       ├── public/          # Static assets
+│       └── src/
+│           ├── app/         # Next.js app router
+│           ├── components/  # React components
+│           └── lib/         # Frontend utilities
+└── shared/                  # Shared types and utilities
+    └── src/
+        └── types/           # TypeScript type definitions
+```
+
+## Technical Architecture
+
+### Backend (API)
+
+The backend is built with Node.js and TypeScript, featuring:
+
+1. **Base Parser System**: An extensible abstract class (`BaseParser`) that provides core functionality for all site-specific parsers:
+
+   - Browser automation with Playwright
+   - Structured logging
+   - Error handling and recovery
+   - Content extraction and normalization
+   - Result storage
+
+2. **Site-Specific Parsers**: Individual parser implementations for each news source that extend the base parser:
+
+   - Custom selectors and extraction logic
+   - Site-specific fallback strategies
+   - Anti-blocking techniques
+
+3. **Parser Factory**: A factory pattern implementation that manages parser instantiation and execution:
+
+   - Browser instance sharing
+   - Unified interface for all parsers
+   - Centralized error handling
+
+4. **Database Layer**: Prisma ORM for type-safe database operations:
+
+   - Schema definition with relations
+   - Migration management
+   - CRUD operations for news items
+
+5. **Analytics Service**: Processes news data to extract insights:
+
+   - Topic identification
+   - Trend analysis
+   - Source statistics
+
+6. **Daemon Process**: Background service for scheduled parsing:
+   - Configurable update intervals
+   - Resource management
+   - Graceful shutdown handling
+
+### Frontend (Web)
+
+The frontend is built with Next.js and React, featuring:
+
+1. **News Browsing Interface**:
+
+   - Responsive grid layout
+   - Filtering and sorting options
+   - Pagination
+
+2. **News Item Detail View**:
+
+   - Full article content display
+   - Metadata visualization
+   - Edit capability
+
+3. **Admin Controls**:
+
+   - Parser status monitoring
+   - Manual parsing triggers
+   - Log viewing
+
+4. **Theme Support**:
+   - Light/dark mode
+   - Responsive design
+
+### Shared Package
+
+The shared package contains common types and utilities used by both frontend and backend:
+
+1. **News Item Types**: Defines the structure of news data
+2. **Parser Types**: Defines parser interfaces and site name constants
+3. **Utility Functions**: Shared helper functions
+
+## Key Implementation Details
+
+### Parser System
+
+The parser system is designed for resilience and extensibility:
+
+```typescript
+// Base parser provides core functionality
+export abstract class BaseParser {
+  protected browser: Browser | null = null;
+  protected page: Page | null = null;
+  protected context: BrowserContext | null = null;
+  protected ownsBrowser = true;
+  protected baseUrl: string;
+  protected logger: Logger;
+
+  constructor(
+    protected sourceName: string,
+    protected config: ParserConfig,
+    options: ParserOptions = {}
+  ) {
+    this.baseUrl = config.url;
+    this.logger = options.logger || defaultLogger;
+  }
+
+  // Main parsing method with lifecycle management
+  public async parse(): Promise<NewsItem[]> {
+    try {
+      await this.init();
+      const news = await this.extractNewsItems();
+      await this.saveResults(news);
+      return news;
+    } catch (error) {
+      this.logMessage(`Error during parsing: ${error}`, "error");
+      return [];
+    } finally {
+      await this.closeBrowser();
+    }
+  }
+
+  // Abstract method that each parser must implement
+  protected abstract extractArticleContent(url: string): Promise<string>;
+
+  // Default implementation that can be overridden
+  protected async extractNewsItems(): Promise<NewsItem[]> {
+    // Default implementation using config.selectors
+  }
+}
+```
+
+### Factory Pattern
+
+The factory pattern simplifies parser usage:
+
+```typescript
+// Usage example
+const news = await ParserFactory.runParser("cointelegraph", {
+  headless: true,
+  browser: sharedBrowser,
+});
+```
+
+### Database Schema
+
+The database schema is defined using Prisma:
+
+```prisma
+model NewsItem {
+  id          Int      @id @default(autoincrement())
+  source      String
+  url         String   @unique
+  title       String
+  description String?
+  published_at DateTime
+  fetched_at  DateTime @default(now())
+  category    String?
+  author      String?
+  content_type String  @default("Article")
+  full_content String?
+  preview_content String?
+  edited_content String?
+  tags        String?
+  image_url   String?
+
+  @@index([source])
+  @@index([published_at])
+}
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js (v16+)
-- pnpm package manager
-- PostgreSQL database (a NEON.tech account)
+- Node.js 18+
+- pnpm
+- PostgreSQL database
 
 ### Installation
 
-1. Clone the repository
-2. Install dependencies:
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/crypto-news-parser.git
+   cd crypto-news-parser
    ```
+
+2. Install dependencies:
+
+   ```bash
    pnpm install
    ```
-3. Set up environment variables in `.env`:
+
+3. Set up environment variables:
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials
    ```
-   DATABASE_URL="postgresql://username:password@your-neon-db-host:5432/dbname"
+
+4. Set up the database:
+
+   ```bash
+   pnpm db:migrate
    ```
-4. Run database migrations:
+
+5. Build the shared package:
+   ```bash
+   pnpm --filter @cryptonewsparser/shared build
    ```
-   pnpm prisma migrate dev
+
+### Running the Application
+
+1. Start the API server:
+
+   ```bash
+   pnpm api:dev
    ```
 
-## Using the CLI
+2. Start the web interface:
 
-The system provides a unified CLI for all operations:
+   ```bash
+   pnpm web:dev
+   ```
 
-```bash
-# Run all parsers and save to database
-pnpm cli parse
+3. Run the parser daemon:
 
-# Run a specific parser
-pnpm cli parse cointelegraph coindesk
+   ```bash
+   pnpm daemon:start
+   ```
 
-# Test database connection
-pnpm cli test-db
+4. Run a specific parser via CLI:
+   ```bash
+   pnpm cli parse cointelegraph
+   ```
 
-# Clean up old output files
-pnpm cli cleanup --days 14
-```
+## Development Workflow
 
-## Running Parsers
+1. **Adding a New Parser**:
 
-### Using the CLI
+   - Create a new config file in `apps/api/src/config/parsers/`
+   - Create a new parser class in `apps/api/src/parsers/` extending `BaseParser`
+   - Add the site name to `SiteName` type in `shared/src/types/parser.ts`
+   - Register the parser in `ParserFactory`
 
-```bash
-# Parse all sources
-pnpm parse:all
+2. **Modifying the Database Schema**:
 
-# Parse specific sources
-pnpm cli parse cointelegraph decrypt theblock
-```
+   - Edit `apps/api/prisma/schema.prisma`
+   - Run `pnpm db:migrate:dev` to create a migration
+   - Update related types in `shared/src/types/`
 
-### Using npm Scripts
+3. **Adding Frontend Features**:
+   - Add components in `apps/web/src/components/`
+   - Update API client in `apps/web/src/lib/api.ts`
+   - Add or modify pages in `apps/web/src/app/`
 
-The system provides dedicated scripts for each parser:
+## Deployment
 
-```bash
-# Run the CoinTelegraph parser
-pnpm parse:cointelegraph
+The application can be deployed using various methods:
 
-# Run the CoinDesk parser
-pnpm parse:coindesk
+1. **Docker Deployment**:
 
-# Run all parsers
-pnpm parse
-```
+   - Build Docker images for API and web
+   - Use Docker Compose for orchestration
 
-## Background Processing Daemon
+2. **Traditional Deployment**:
 
-The system includes a daemon for continuous background processing of news sources.
+   - Build the applications: `pnpm build`
+   - Use PM2 or similar for process management
 
-### Starting the Daemon
+3. **Cloud Deployment**:
+   - Deploy API to services like Render, Railway, or Fly.io
+   - Deploy web to Vercel or Netlify
 
-```bash
-# Run in foreground (visible logs in terminal)
-pnpm daemon:start
+## Future Enhancements
 
-# Run in background (detached mode)
-pnpm daemon:start:detached
+1. **AI-Powered Analysis**: Implement AI models for content summarization and sentiment analysis
+2. **Real-time Updates**: Add WebSocket support for live updates
+3. **User Accounts**: Add authentication and personalized news feeds
+4. **Mobile App**: Develop a companion mobile application
+5. **Additional Sources**: Expand the number of supported news sources
+6. **Advanced Analytics**: Implement more sophisticated trend analysis
 
-# View logs when running in detached mode
-pnpm daemon:log
-```
+## Conclusion
 
-### Daemon Features
-
-- **Automatic Scheduling**: Parses all news sources every 10 minutes
-- **Headless Operation**: Runs browsers invisibly in the background
-- **Resource Optimization**: Shares browser instances between parsers
-- **Memory Management**: Automatically restarts browsers to prevent memory leaks
-- **Graceful Shutdown**: Handles termination signals properly (Ctrl+C)
-- **Analytics Generation**: Updates analytics data after each parsing cycle
-
-### Production Deployment with PM2
-
-For production environments, use PM2 for robust process management:
-
-```bash
-# Build TypeScript code
-pnpm build
-
-# Start daemon with PM2
-pnpm pm2:start
-
-# Check status
-pnpm pm2:status
-
-# View logs
-pnpm pm2:logs
-
-# Stop daemon
-pnpm pm2:stop
-
-# Restart daemon
-pnpm pm2:restart
-```
-
-## Performance Optimizations
-
-The system includes several optimizations for efficient operation:
-
-1. **Headless Browser Mode**: All browser automation runs invisibly
-2. **Resource Blocking**: Blocks images, CSS, analytics scripts, and other non-essential resources
-3. **Browser Instance Reuse**: Shares a single browser instance across multiple parsers
-4. **Memory Management**: Periodically restarts the browser to prevent memory leaks
-5. **Parallel Processing**: Efficiently processes multiple news sources
-
-These optimizations significantly reduce resource usage and improve parsing speed.
-
-## Monitoring and Logs
-
-All parsers output detailed logs to the console, including:
-
-- Number of articles found
-- Processing status
-- Database operations
-- Errors and warnings
-
-Example log output:
-
-```
-🔄 Starting parsing cycle at 2023-04-01T12:00:00.000Z
-📰 Parsing source: all
-✅ Parsed 105 items from all
-💾 Saved 105 items to database
-📊 Generating analytics...
-✅ Analytics updated successfully
-✅ Parsing cycle completed in 45.32 seconds
-⏰ Next cycle scheduled in 10 minutes
-```
-
-For more detailed debugging, check the output directory for:
-
-- Screenshots of pages (when errors occur)
-- Raw HTML content
-- Structured JSON data
-
-## Database Integration with NEON.tech
-
-The system stores all parsed news in a PostgreSQL database hosted on NEON.tech.
-
-### Database Schema
-
-The main table is `NewsItem` with fields:
-
-- `id`: Unique identifier
-- `source`: News source name
-- `url`: Article URL (unique)
-- `title`: Article title
-- `description`: Brief description
-- `published_at`: Publication date
-- `fetched_at`: When the article was fetched
-- `category`: Article category
-- `author`: Article author
-- `content_type`: Type of content
-- `full_content`: Complete article text
-- `preview_content`: Preview of the article
-
-### Testing the Database
-
-To verify the database connection and see sample data:
-
-```bash
-pnpm test:db
-```
-
-This will retrieve and display the most recent news items from the database.
-
-## Data Visualization and Analytics
-
-The system includes built-in analytics capabilities to gain insights from the collected news data.
-
-### Running Analytics
-
-```bash
-pnpm analyze
-```
-
-This generates JSON files in the `output/analytics/` directory with:
-
-1. **Source Distribution**: Number of articles per news source
-2. **Top Categories**: Most common article categories
-3. **News Volume by Day**: Article count per day over time
-4. **Trending Topics**: Most frequent words/topics in recent articles
-
-### Viewing Analytics Results
-
-The analytics results are saved as JSON files that can be:
-
-- Imported into visualization tools like Tableau or Power BI
-- Viewed directly in the browser or text editor
-- Used as input for custom visualization scripts
-
-Example analytics output:
-
-```json
-// output/analytics/trending_topics.json
-[
-  {"word": "bitcoin", "count": 143},
-  {"word": "ethereum", "count": 87},
-  {"word": "market", "count": 62},
-  {"word": "regulation", "count": 45},
-  ...
-]
-```
-
-## Exporting Data
-
-You can export the collected news data in various formats:
-
-```bash
-# Export recent news to JSON
-pnpm cli export json --days 7 --output recent_news.json
-
-# Export news from a specific source to CSV
-pnpm cli export csv --source cointelegraph --output cointelegraph_news.csv
-```
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Database Connection Errors**:
-
-   - Verify your NEON.tech connection string in `.env`
-   - Check if your IP is whitelisted in NEON.tech dashboard
-
-2. **Parser Failures**:
-
-   - Some websites may change their structure or block scrapers
-   - Check the logs for specific error messages
-   - Try running with the `--debug` flag for more information
-
-3. **Missing Dependencies**:
-
-   - Run `pnpm install` to ensure all dependencies are installed
-   - For Playwright issues, run `npx playwright install` to update browsers
-
-4. **Daemon Issues**:
-   - If the daemon crashes, check `daemon.log` for error details
-   - For memory issues, try reducing `MAX_BROWSER_LIFETIME` in `daemon.ts`
-   - Ensure your system has enough resources for headless browsers
-
-### Viewing Logs
-
-All operations log to the console by default. For persistent logs:
-
-```bash
-# Save logs to a file
-pnpm cli parse > parser_log.txt 2>&1
-
-# View daemon logs
-pnpm daemon:log
-```
-
-## Advanced Usage
-
-### Adding a New Parser
-
-1. Create a configuration file in `src/config/parsers/`
-2. Implement a parser class in `src/parsers/`
-3. Register the parser in `src/utils/parser-factory.ts`
-4. Add a script to `package.json`
-
-### Customizing Analytics
-
-The analytics module can be extended in `src/services/analytics.ts` to add new types of analysis.
-
-### Scheduling Regular Runs
-
-Use a cron job or process manager like PM2 to schedule regular parsing:
-
-```bash
-# Example crontab entry (run daily at 6 AM)
-0 6 * * * cd /path/to/project && pnpm parse
-```
-
-For continuous operation, use the daemon:
-
-```bash
-# Start daemon on system boot
-pm2 startup
-pnpm pm2:start
-pm2 save
-```
-
-## Performance Considerations
-
-- The system uses resource blocking and headless mode to improve performance
-- Browser instance reuse significantly reduces memory usage
-- Automatic browser restarts prevent memory leaks during long-running operations
-- For large-scale parsing, consider distributing across multiple servers
-- NEON.tech database scaling may be needed for high-volume operations
-
-## Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch
-3. Submit a pull request
-
-## License
-
-This project is licensed under the ISC License.
+Crypto News Parser provides a robust solution for aggregating and analyzing cryptocurrency news. Its modular architecture allows for easy extension and maintenance, while the separation of concerns between the API and web interface enables flexible deployment options.
