@@ -1,65 +1,20 @@
 {
-  "name": "telegram-crypto-parser",
+  "name": "cryptonewsparser",
   "version": "1.0.0",
-  "description": "Telegram crypto news parser with database integration",
-  "main": "dist/index.js",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "shared"
+  ],
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "getsession": "ts-node src/getSession.ts",
-    "test-parser": "ts-node src/scripts/testParser.ts",
-    "parse": "ts-node src/scripts/cryptoNewsParser.ts",
-    "parse:cointelegraph": "ts-node src/scripts/cryptoNewsParser.ts cointelegraph",
-    "parse:coindesk": "ts-node src/scripts/cryptoNewsParser.ts coindesk",
-    "parse:cryptonews": "ts-node src/scripts/cryptoNewsParser.ts cryptonews",
-    "parse:decrypt": "ts-node src/scripts/cryptoNewsParser.ts decrypt",
-    "parse:theblock": "ts-node src/scripts/cryptoNewsParser.ts theblock",
-    "parse:ambcrypto": "ts-node src/scripts/cryptoNewsParser.ts ambcrypto",
-    "parse:bitcoincom": "ts-node src/scripts/cryptoNewsParser.ts bitcoincom",
-    "parse:bitcoinmagazine": "ts-node src/scripts/cryptoNewsParser.ts bitcoinmagazine",
-    "parse:beincrypto": "ts-node src/scripts/cryptoNewsParser.ts beincrypto",
-    "parse:watcherguru": "ts-node src/scripts/cryptoNewsParser.ts watcherguru",
-    "parse:cryptoslate": "ts-node src/scripts/cryptoNewsParser.ts cryptoslate",
-    "parse:help": "ts-node src/scripts/testParser.ts --help",
-    "cli": "ts-node src/cli.ts",
-    "analyze": "ts-node src/scripts/visualize.ts",
-    "export": "ts-node src/scripts/export.ts",
-    "parse:all": "ts-node src/cli.ts parse",
-    "test:db": "ts-node src/cli.ts test-db",
-    "cleanup": "ts-node src/cli.ts cleanup",
-    "daemon:start": "ts-node src/scripts/daemon.ts",
-    "daemon:start:detached": "nohup ts-node src/scripts/daemon.ts > daemon.log 2>&1 &",
-    "daemon:log": "tail -f daemon.log",
-    "pm2:start": "pm2 start ecosystem.config.js",
-    "pm2:stop": "pm2 stop crypto-news-daemon",
-    "pm2:restart": "pm2 restart crypto-news-daemon",
-    "pm2:logs": "pm2 logs crypto-news-daemon",
-    "pm2:status": "pm2 status"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "@ai-sdk/anthropic": "^1.1.0",
-    "@playwright/test": "^1.51.1",
-    "@prisma/client": "^6.5.0",
-    "ai": "^4.1.0",
-    "commander": "^13.1.0",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "input": "^1.0.1",
-    "moment-timezone": "^0.5.43",
-    "openai": "^4.79.1",
-    "playwright": "^1.51.1",
-    "telegram": "^2.19.10"
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "start": "turbo run start",
+    "lint": "turbo run lint"
   },
   "devDependencies": {
-    "@types/express": "^4.17.21",
-    "@types/node": "^20.17.28",
-    "prisma": "^6.5.0",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.3.2"
+    "@playwright/test": "^1.51.1",
+    "turbo": "^1.10.0"
   },
-  "packageManager": "pnpm@10.6.1+sha512.40ee09af407fa9fbb5fbfb8e1cb40fbb74c0af0c3e10e9224d7b53c7658528615b2c92450e74cfad91e3a2dcafe3ce4050d80bda71d757756d2ce2b66213e9a3"
+  "packageManager": "pnpm@10.7.0+sha512.6b865ad4b62a1d9842b61d674a393903b871d9244954f652b8842c2b553c72176b278f64c463e52d40fff8aba385c235c8c9ecf5cc7de4fd78b8bb6d49633ab6"
 }

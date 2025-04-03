@@ -2,22 +2,12 @@
   "compilerOptions": {
     "target": "es2018",
     "module": "commonjs",
-    "lib": ["es2018", "esnext.asynciterable", "dom"],
-    "strict": true,
+    "moduleResolution": "node",
     "esModuleInterop": true,
-    "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./dist",
-    "typeRoots": ["./node_modules/@types", "./src/types"],
-    "baseUrl": ".",
-    "paths": {
-      "@types/node": [
-        "./node_modules/.pnpm/@types+node@20.17.28/node_modules/@types/node"
-      ],
-      ".prisma/client": ["./node_modules/.prisma/client"]
-    },
-    "types": ["node"]
+    "strict": true,
+    "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": ["playwright.config.ts"],
+  "exclude": ["node_modules", "apps/**/dist", "shared/dist"]
 }
