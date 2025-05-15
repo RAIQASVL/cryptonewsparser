@@ -1,157 +1,326 @@
-# Crypto News Parser System Documentation
+# Crypto News Parser
 
-## System Overview
+## Project Overview
 
-This project is a comprehensive crypto news parsing system designed to extract news articles from various cryptocurrency and financial news websites. The system uses Playwright for browser automation to navigate websites, extract news items, and save them in a structured JSON format.
+Crypto News Parser is a comprehensive platform for collecting, analyzing, and displaying cryptocurrency news from multiple sources. The project uses a monorepo structure with a modern tech stack including TypeScript, Node.js, Next.js, Prisma, and Playwright.
+
+## Key Features
+
+- **Multi-Source News Aggregation**: Automatically scrapes and parses news from 12+ crypto news websites
+- **Resilient Parsing**: Multiple fallback strategies to handle site changes, blocks, and CAPTCHAs
+- **Content Analysis**: Extracts and analyzes news content, identifying trends and topics
+- **Modern Web Interface**: Clean, responsive UI for browsing and managing news items
+- **Scheduled Updates**: Daemon process for regular news collection
+- **Database Storage**: Persistent storage with Prisma ORM
+- **API Access**: RESTful API for accessing news data
 
 ## Project Structure
 
+The project is organized as a monorepo with the following main components:
+
 ```
-src/
-├── config/
-│   └── parsers/           # Configuration for each news source
-├── parsers/               # Parser implementations for each news source
-├── scripts/               # CLI scripts to run parsers
-├── types/                 # TypeScript type definitions
-└── utils/                 # Utility functions and factory pattern
-output/                    # Output directory for parsed news
+crypto-news-parser/
+├── apps/
+│   ├── api/                 # Backend API and parsers
+│   │   ├── prisma/          # Database schema and migrations
+│   │   ├── src/
+│   │   │   ├── api/         # API endpoints
+│   │   │   ├── config/      # Configuration files
+│   │   │   ├── parsers/     # News site parsers
+│   │   │   ├── scripts/     # CLI and daemon scripts
+│   │   │   ├── services/    # Core services (DB, analytics)
+│   │   │   └── utils/       # Utility functions
+│   │   └── output/          # Parsed news output
+│   └── web/                 # Frontend Next.js application
+│       ├── public/          # Static assets
+│       └── src/
+│           ├── app/         # Next.js app router
+│           ├── components/  # React components
+│           └── lib/         # Frontend utilities
+└── shared/                  # Shared types and utilities
+    └── src/
+        └── types/           # TypeScript type definitions
 ```
 
-## Core Components
+## Technical Architecture
 
-### 1. Base Parser (`BaseParser.ts`)
+### Backend (API)
 
-The `BaseParser` is an abstract class that provides the foundation for all specific parsers. It handles:
+The backend is built with Node.js and TypeScript, featuring:
 
-- Browser initialization with Playwright
-- Page navigation with resource blocking for performance
-- Human behavior simulation to avoid detection
-- News extraction from the main page
-- Article content extraction
-- Anti-blocking measures
-- Saving results to JSON files
+1. **Base Parser System**: An extensible abstract class (`BaseParser`) that provides core functionality for all site-specific parsers:
 
-Key methods:
+   - Browser automation with Playwright
+   - Structured logging
+   - Error handling and recovery
+   - Content extraction and normalization
+   - Result storage
 
-- `parse()`: Main entry point that orchestrates the parsing process
-- `extractNewsItems()`: Extracts news items from the main page
-- `extractArticleContent()`: Abstract method implemented by each parser to extract full article content
-- `checkForBlockers()`: Detects if the site is blocking the parser
-- `randomDelay()`: Adds random delays to mimic human behavior
+2. **Site-Specific Parsers**: Individual parser implementations for each news source that extend the base parser:
 
-### 2. Parser Factory (`parser-factory.ts`)
+   - Custom selectors and extraction logic
+   - Site-specific fallback strategies
+   - Anti-blocking techniques
 
-Implements the Factory pattern to create and manage parser instances:
+3. **Parser Factory**: A factory pattern implementation that manages parser instantiation and execution:
 
-- `getParser(site)`: Returns a parser instance for a specific site
-- `getAllParsers()`: Returns all available parsers
-- `runParser(siteName)`: Runs a specific parser and returns the results
+   - Browser instance sharing
+   - Unified interface for all parsers
+   - Centralized error handling
 
-### 3. Specific Parsers
+4. **Database Layer**: Prisma ORM for type-safe database operations:
 
-Each news source has its own parser class that extends `BaseParser`:
+   - Schema definition with relations
+   - Migration management
+   - CRUD operations for news items
 
-- `WatcherGuruParser`
-- `CoinTelegraphParser`
-- `CoinDeskParser`
-- `DecryptParser`
-- `TheBlockParser`
-- `AMBCryptoParser`
-- `BitcoinMagazineParser`
-- `BitcoinComParser`
-- `BeInCryptoParser`
-- `CryptoSlateParser`
+5. **Analytics Service**: Processes news data to extract insights:
 
-Each parser implements the `extractArticleContent()` method with site-specific logic.
+   - Topic identification
+   - Trend analysis
+   - Source statistics
 
-### 4. Parser Configurations
+6. **Daemon Process**: Background service for scheduled parsing:
+   - Configurable update intervals
+   - Resource management
+   - Graceful shutdown handling
 
-Each parser has a configuration file in `src/config/parsers/` that defines:
+### Frontend (Web)
 
-- CSS selectors for news items and their components
-- URL to parse
-- Article-specific selectors for content extraction
+The frontend is built with Next.js and React, featuring:
 
-### 5. Utility Functions (`parser-utils.ts`)
+1. **News Browsing Interface**:
 
-Helper functions for common tasks:
+   - Responsive grid layout
+   - Filtering and sorting options
+   - Pagination
 
-- `cleanText()`: Removes HTML tags and normalizes whitespace
-- `normalizeUrl()`: Ensures URLs are absolute
-- `normalizeDate()`: Converts various date formats to ISO format
-- `ensureDirectoryExists()`: Creates directories if they don't exist
-- `saveDebugInfo()`: Saves screenshots and HTML for debugging
-- `setupResourceBlocking()`: Blocks unnecessary resources for faster loading
+2. **News Item Detail View**:
 
-### 6. Type Definitions
+   - Full article content display
+   - Metadata visualization
+   - Edit capability
 
-- `NewsItem`: Interface for structured news data
-- `ParserConfig`: Interface for parser configuration
-- Other utility types
+3. **Admin Controls**:
 
-## Parsing Process Flow
+   - Parser status monitoring
+   - Manual parsing triggers
+   - Log viewing
 
-1. **Initialization**: The parser is created and initialized with its configuration
-2. **Browser Setup**: A Playwright browser is launched with resource blocking
-3. **Main Page Extraction**:
-   - Navigate to the news source's main page
-   - Check for blocking mechanisms
-   - Extract basic news item data (title, URL, etc.)
-4. **Content Enrichment**:
-   - For each news item, navigate to its URL
-   - Extract the full article content
-   - Clean and format the content
-5. **Alternative Methods**:
-   - If the main method fails, try alternative approaches:
-     - RSS feeds
-     - Mobile versions of the site
-     - Search engine results
-6. **Result Saving**: Save the structured data to JSON files
+4. **Theme Support**:
+   - Light/dark mode
+   - Responsive design
 
-## Anti-Detection Measures
+### Shared Package
 
-The system implements several techniques to avoid being detected as a bot:
+The shared package contains common types and utilities used by both frontend and backend:
 
-- Random delays between actions
-- Simulated mouse movements and scrolling
-- Partial loading of images and resources
-- User-agent rotation
-- Detection of blocking mechanisms (CAPTCHA, 403 errors, etc.)
+1. **News Item Types**: Defines the structure of news data
+2. **Parser Types**: Defines parser interfaces and site name constants
+3. **Utility Functions**: Shared helper functions
 
-## Running the Parsers
+## Key Implementation Details
 
-The system can be run via npm scripts defined in `package.json`:
+### Parser System
 
-- `pnpm parse:watcherguru`: Run the WatcherGuru parser
-- `pnpm parse:cointelegraph`: Run the CoinTelegraph parser
-- etc.
+The parser system is designed for resilience and extensibility:
 
-## Output Format
+```typescript
+// Base parser provides core functionality
+export abstract class BaseParser {
+  protected browser: Browser | null = null;
+  protected page: Page | null = null;
+  protected context: BrowserContext | null = null;
+  protected ownsBrowser = true;
+  protected baseUrl: string;
+  protected logger: Logger;
 
-The parsers output JSON files with an array of `NewsItem` objects containing:
+  constructor(
+    protected sourceName: string,
+    protected config: ParserConfig,
+    options: ParserOptions = {}
+  ) {
+    this.baseUrl = config.url;
+    this.logger = options.logger || defaultLogger;
+  }
 
-- Basic metadata (title, URL, author, date)
-- Category and tags
-- Full article content in clean text format
-- Image URLs
-- Reading time and other metadata when available
+  // Main parsing method with lifecycle management
+  public async parse(): Promise<NewsItem[]> {
+    try {
+      await this.init();
+      const news = await this.extractNewsItems();
+      await this.saveResults(news);
+      return news;
+    } catch (error) {
+      this.logMessage(`Error during parsing: ${error}`, "error");
+      return [];
+    } finally {
+      await this.closeBrowser();
+    }
+  }
 
-## Error Handling
+  // Abstract method that each parser must implement
+  protected abstract extractArticleContent(url: string): Promise<string>;
 
-The system implements robust error handling:
+  // Default implementation that can be overridden
+  protected async extractNewsItems(): Promise<NewsItem[]> {
+    // Default implementation using config.selectors
+  }
+}
+```
 
-- Graceful fallbacks when elements aren't found
-- Alternative extraction methods when the main method fails
-- Detailed logging for debugging
-- Screenshots of error states
+### Factory Pattern
 
-## Extensibility
+The factory pattern simplifies parser usage:
 
-Adding a new parser involves:
+```typescript
+// Usage example
+const news = await ParserFactory.runParser("cointelegraph", {
+  headless: true,
+  browser: sharedBrowser,
+});
+```
 
-1. Creating a configuration file in `src/config/parsers/`
-2. Implementing a parser class that extends `BaseParser`
-3. Registering the parser in `parser-factory.ts`
-4. Adding a run script to `package.json`
+### Database Schema
 
-This modular design makes it easy to add support for new news sources.
+The database schema is defined using Prisma:
+
+```prisma
+model NewsItem {
+  id          Int      @id @default(autoincrement())
+  source      String
+  url         String   @unique
+  title       String
+  description String?
+  published_at DateTime
+  fetched_at  DateTime @default(now())
+  category    String?
+  author      String?
+  content_type String  @default("Article")
+  full_content String?
+  preview_content String?
+  edited_content String?
+  tags        String?
+  image_url   String?
+
+  @@index([source])
+  @@index([published_at])
+}
+```
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm
+- PostgreSQL database
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/crypto-news-parser.git
+   cd crypto-news-parser
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+3. Set up environment variables:
+
+   ```bash
+   cp .env.example .env
+   # Edit .env with your database credentials
+   ```
+
+4. Set up the database:
+
+   ```bash
+   pnpm db:migrate
+   ```
+
+5. Build the shared package:
+   ```bash
+   pnpm --filter @cryptonewsparser/shared build
+   ```
+
+### Running the Application
+
+1. Start the API server:
+
+   ```bash
+   pnpm api:dev
+   ```
+
+2. Start the web interface:
+
+   ```bash
+   pnpm web:dev
+   ```
+
+3. Run the parser daemon:
+
+   ```bash
+   pnpm daemon:start
+   ```
+
+4. Run a specific parser via CLI:
+   ```bash
+   pnpm cli parse cointelegraph
+   ```
+
+## Development Workflow
+
+1. **Adding a New Parser**:
+
+   - Create a new config file in `apps/api/src/config/parsers/`
+   - Create a new parser class in `apps/api/src/parsers/` extending `BaseParser`
+   - Add the site name to `SiteName` type in `shared/src/types/parser.ts`
+   - Register the parser in `ParserFactory`
+
+2. **Modifying the Database Schema**:
+
+   - Edit `apps/api/prisma/schema.prisma`
+   - Run `pnpm db:migrate:dev` to create a migration
+   - Update related types in `shared/src/types/`
+
+3. **Adding Frontend Features**:
+   - Add components in `apps/web/src/components/`
+   - Update API client in `apps/web/src/lib/api.ts`
+   - Add or modify pages in `apps/web/src/app/`
+
+## Deployment
+
+The application can be deployed using various methods:
+
+1. **Docker Deployment**:
+
+   - Build Docker images for API and web
+   - Use Docker Compose for orchestration
+
+2. **Traditional Deployment**:
+
+   - Build the applications: `pnpm build`
+   - Use PM2 or similar for process management
+
+3. **Cloud Deployment**:
+   - Deploy API to services like Render, Railway, or Fly.io
+   - Deploy web to Vercel or Netlify
+
+## Future Enhancements
+
+1. **AI-Powered Analysis**: Implement AI models for content summarization and sentiment analysis
+2. **Real-time Updates**: Add WebSocket support for live updates
+3. **User Accounts**: Add authentication and personalized news feeds
+4. **Mobile App**: Develop a companion mobile application
+5. **Additional Sources**: Expand the number of supported news sources
+6. **Advanced Analytics**: Implement more sophisticated trend analysis
+
+## Conclusion
+
+Crypto News Parser provides a robust solution for aggregating and analyzing cryptocurrency news. Its modular architecture allows for easy extension and maintenance, while the separation of concerns between the API and web interface enables flexible deployment options.
